@@ -1,0 +1,146 @@
+// ============================================================================
+// ADMIN / RBAC MODULE
+// ============================================================================
+
+model AdminRole {
+  id          Int      @id @default(autoincrement()) @db.SmallInt
+  code        String   @unique @db.VarChar(30)
+  displayName String   @map("display_name") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  admins      Admin[]
+  permissions AdminRolePermission[]
+
+  @@map("admin_roles")
+}
+
+model AdminPermission {
+  id          Int     @id @default(autoincrement()) @db.SmallInt
+  code        String  @unique @db.VarChar(60)
+  module      String  @db.VarChar(50)
+  description String?
+
+  roles AdminRolePermission[]
+
+  @@map("admin_permissions")
+}
+
+model AdminRolePermission {
+  roleId       Int      @map("role_id") @db.SmallInt
+  permissionId Int      @map("permission_id") @db.SmallInt
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       AdminRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("admin_role_permissions")
+}
+
+model Admin {
+  id                  BigInt          @id @default(autoincrement())
+  publicId            String          @unique @default(uuid()) @map("public_id") @db.Uuid
+  roleId              Int?            @map("role_id") @db.SmallInt
+  fullName            String          @map("full_name") @db.VarChar(150)
+  email               String          @unique @db.Citext
+  passwordHash        String?         @map("password_hash")
+  avatarUrl           String?         @map("avatar_url")
+  status              AdminStatus     @default(active)
+  themePreference     ThemePreference @default(light) @map("theme_preference")
+  languageId          Int?            @map("language_id") @db.SmallInt
+  failedLoginAttempts Int             @default(0) @map("failed_login_attempts") @db.SmallInt
+  lockedUntil         DateTime?       @map("locked_until")
+  lastLoginAt         DateTime?       @map("last_login_at")
+  lastLoginIp         String?         @map("last_login_ip") @db.Inet
+  emailVerifiedAt     DateTime?       @map("email_verified_at")
+  createdById         BigInt?         @map("created_by")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  deletedAt           DateTime?       @map("deleted_at")
+
+  role     AdminRole? @relation(fields: [roleId], references: [id])
+  language Language?  @relation(fields: [languageId], references: [id])
+
+  createdBy     Admin?  @relation("AdminCreatedBy", fields: [createdById], references: [id])
+  createdAdmins Admin[] @relation("AdminCreatedBy")
+
+  createdUsers      User[]              @relation("UserCreatedBy")
+  updatedUsers      User[]              @relation("UserUpdatedBy")
+  userSubscriptions UserSubscription[]
+  userStatusChanges UserStatusHistory[]
+  userNotes         AdminNote[]
+
+  authSessions   AdminAuthSession[]
+  loginHistory   AdminLoginHistory[]
+  passwordResets AdminPasswordReset[]
+  notifications  AdminNotification[]
+
+  @@index([roleId])
+  @@index([status])
+  @@map("admins")
+}
+
+model AdminAuthSession {
+  id               BigInt    @id @default(autoincrement())
+  adminId          BigInt    @map("admin_id")
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  deviceInfo       String?   @map("device_info") @db.VarChar(200)
+  ipAddress        String?   @map("ip_address") @db.Inet
+  userAgent        String?   @map("user_agent")
+  issuedAt         DateTime  @default(now()) @map("issued_at")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("admin_auth_sessions")
+}
+
+model AdminLoginHistory {
+  id             BigInt   @id @default(autoincrement())
+  adminId        BigInt?  @map("admin_id")
+  attemptedEmail String   @map("attempted_email") @db.Citext
+  ipAddress      String?  @map("ip_address") @db.Inet
+  userAgent      String?  @map("user_agent")
+  isSuccess      Boolean  @map("is_success")
+  failureReason  String?  @map("failure_reason") @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  admin Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([adminId, createdAt])
+  @@index([attemptedEmail, createdAt])
+  @@map("admin_login_history")
+}
+
+model AdminPasswordReset {
+  id        BigInt    @id @default(autoincrement())
+  adminId   BigInt    @map("admin_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("admin_password_resets")
+}
+
+model AdminNotification {
+  id        BigInt    @id @default(autoincrement())
+  adminId   BigInt    @map("admin_id")
+  title     String    @db.VarChar(150)
+  body      String?
+  type      String    @default("system") @db.VarChar(50)
+  isRead    Boolean   @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, isRead])
+  @@map("admin_notifications")
+}
