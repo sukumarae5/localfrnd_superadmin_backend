@@ -61,30 +61,216 @@ enum ThemePreference {
   @@map("theme_preference")
 }
 
+enum BlockType {
+  temporary
+  permanent
+
+  @@map("block_type")
+}
+
+enum BlockedByType {
+  admin
+  system
+
+  @@map("blocked_by_type")
+}
+
+enum AppealStatus {
+  pending
+  accepted
+  rejected
+
+  @@map("appeal_status")
+}
+
+enum WalletTxnType {
+  credit
+  debit
+  refund
+  bonus
+  recharge
+
+  @@map("wallet_txn_type")
+}
+
+enum WalletTxnStatus {
+  pending
+  completed
+  failed
+  reversed
+
+  @@map("wallet_txn_status")
+}
+
+enum PaymentMethod {
+  upi
+  credit_card
+  wallet
+  other
+
+  @@map("payment_method")
+}
+
+enum FeedbackType {
+  bug
+  feature
+  complaint
+  general
+
+  @@map("feedback_type")
+}
+
+enum FeedbackStatus {
+  open
+  in_progress
+  resolved
+  closed
+
+  @@map("feedback_status")
+}
+
+enum FeedbackPriority {
+  low
+  medium
+  high
+
+  @@map("feedback_priority")
+}
+
+enum RJStatus {
+  online
+  offline
+  busy
+  on_call
+
+  @@map("rj_status")
+}
+
+enum RJTier {
+  silver
+  gold
+  platinum
+
+  @@map("rj_tier")
+}
+
+enum RJApplicationStatus {
+  pending
+  under_review
+  interview_pending
+  approved
+  rejected
+
+  @@map("rj_application_status")
+}
+
+enum RJDocType {
+  aadhaar
+  pan
+  biometric
+  bank
+  email
+  mobile
+
+  @@map("rj_doc_type")
+}
+
+enum RJDocVerificationMethod {
+  ai
+  manual
+
+  @@map("rj_doc_verification_method")
+}
+
+enum RJPriority {
+  low
+  medium
+  high
+
+  @@map("rj_priority")
+}
+
+enum OfflineReason {
+  scheduled_break
+  logged_out
+  unexpected
+
+  @@map("offline_reason")
+}
+
+enum CallStatus {
+  ongoing
+  completed
+  missed
+  dropped
+
+  @@map("call_status")
+}
+
+enum CallQuality {
+  poor
+  average
+  good
+  excellent
+
+  @@map("call_quality")
+}
+
+enum RJWalletTxnType {
+  call_earning
+  bonus
+  referral
+  commission
+  withdrawal
+
+  @@map("rj_wallet_txn_type")
+}
+
+enum RJPayoutStatus {
+  pending
+  approved
+  processing
+  success
+  rejected
+  failed
+
+  @@map("rj_payout_status")
+}
+
+enum ReviewSentiment {
+  positive
+  neutral
+  negative
+
+  @@map("review_sentiment")
+}
+
+enum ReviewStatus {
+  published
+  flagged
+  removed
+
+  @@map("review_status")
+}
+
 // ============================================================================
 // SHARED LOOKUP TABLES
 // ============================================================================
 
-model Language {
-  id   Int    @id @default(autoincrement()) @db.SmallInt
-  code String @unique @db.VarChar(10)
-  name String @db.VarChar(50)
-
-  admins        Admin[]
-  userLanguages UserLanguage[]
-
-  @@map("languages")
-}
-
 model SubscriptionPlan {
-  id          Int      @id @default(autoincrement()) @db.SmallInt
-  code        String   @unique @db.VarChar(30)
-  displayName String   @map("display_name") @db.VarChar(50)
-  priceCents  Int      @default(0) @map("price_cents")
-  features    Json     @default("{}")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                 Int      @id @default(autoincrement()) @db.SmallInt
+  code               String   @unique @db.VarChar(30)
+  displayName        String   @map("display_name") @db.VarChar(50)
+  coins              Int      @default(0)
+  minutes            Int      @default(0)
+  originalPrice      Decimal  @map("original_price") @db.Decimal(10, 2)
+  discountPercent    Int      @default(0) @map("discount_percent") @db.SmallInt
+  priceAfterDiscount Decimal  @map("price_after_discount") @db.Decimal(10, 2)
+  priceCents         Int      @default(0) @map("price_cents") // legacy — see note below
+  features           Json     @default("{}")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   users             User[]
   userSubscriptions UserSubscription[]

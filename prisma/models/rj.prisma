@@ -1,0 +1,402 @@
+// ============================================================================
+// RJ (RELATIONSHIP JOCKEY) MODULE
+// RJ is a 1:1 extension of User (gender = female, role = rj).
+// Male users spend coins/minutes on calls; RJs earn money from those calls.
+// RJCallSession is the pivot linking User spend to RJ earnings.
+// ============================================================================
+
+
+model RJCategory {
+  id   Int    @id @default(autoincrement()) @db.SmallInt
+  code String @unique @db.VarChar(30)
+  name String @db.VarChar(50)
+
+  rjs            RJCategoryMap[]
+  rjapplications RJApplication[]
+
+  @@map("rj_categories")
+}
+
+model RJCategoryMap {
+  rjId       BigInt @map("rj_id")
+  categoryId Int    @map("category_id") @db.SmallInt
+
+  rj       RJ         @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  category RJCategory @relation(fields: [categoryId], references: [id])
+
+  @@id([rjId, categoryId])
+  @@map("rj_category_map")
+}
+
+// Note: language is NOT duplicated here — User already has UserLanguage.
+// RJ reuses that via the userId relation, no separate RJLanguage needed.
+
+model RJ {
+  id          BigInt @id @default(autoincrement())
+  userId      BigInt @unique @map("user_id") // 1:1 -> User
+  publicId    String @unique @default(uuid()) @map("public_id") @db.Uuid
+  displayCode String @unique @map("display_code") @db.VarChar(20) // RJ-8842
+
+  tier               RJTier             @default(silver)
+  status             RJStatus           @default(offline)
+  verificationStatus VerificationStatus @default(unverified) @map("verification_status")
+  verifiedAt         DateTime?          @map("verified_at")
+  verifiedById       BigInt?            @map("verified_by")
+
+  experienceYears Int     @default(0) @map("experience_years") @db.SmallInt
+  commissionRate  Decimal @default(15.0) @map("commission_rate") @db.Decimal(5, 2)
+
+  avgRating          Decimal @default(0) @map("avg_rating") @db.Decimal(3, 2)
+  totalCallsCount    Int     @default(0) @map("total_calls_count")
+  avgResponseSeconds Int?    @map("avg_response_seconds")
+
+  currentAppId BigInt? @unique @map("current_app_id")
+
+  approvedAt   DateTime? @map("approved_at")
+  lastActiveAt DateTime? @map("last_active_at")
+  createdById  BigInt?   @map("created_by")
+  updatedById  BigInt?   @map("updated_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application RJApplication? @relation(fields: [currentAppId], references: [id])
+  createdBy   Admin?         @relation("RJCreatedBy", fields: [createdById], references: [id])
+  updatedBy   Admin?         @relation("RJUpdatedBy", fields: [updatedById], references: [id])
+  verifiedBy  Admin?         @relation("RJVerifiedBy", fields: [verifiedById], references: [id])
+
+  categories    RJCategoryMap[]
+  statusHistory RJStatusHistory[]
+  sessions      RJDeviceSession[]
+  offlineLogs   RJOfflineLog[]
+  callsAsRj     RJCallSession[]
+  wallet        RJWallet?
+  walletTxns    RJWalletTransaction[]
+  payouts       RJPayout[]
+  reviews       RJReview[]
+  performance   RJPerformanceSnapshot[]
+  badges        RJBadge[]
+  activityLogs  RJActivityLog[]
+  adminNotes    RJAdminNote[]
+  interests RJInterest[]
+  
+  @@index([status])
+  @@index([verificationStatus])
+  @@index([tier])
+  @@map("rjs")
+}
+
+model RJStatusHistory {
+  id             BigInt   @id @default(autoincrement())
+  rjId           BigInt   @map("rj_id")
+  previousStatus String   @map("previous_status") @db.VarChar(30)
+  newStatus      String   @map("new_status") @db.VarChar(30)
+  reason         String?
+  changedById    BigInt?  @map("changed_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  rj        RJ     @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  changedBy Admin? @relation(fields: [changedById], references: [id])
+
+  @@index([rjId, createdAt])
+  @@map("rj_status_history")
+}
+
+model RJAdminNote {
+  id        BigInt    @id @default(autoincrement())
+  rjId      BigInt    @map("rj_id")
+  adminId   BigInt    @map("admin_id")
+  note      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  rj    RJ    @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  admin Admin @relation(fields: [adminId], references: [id])
+
+  @@index([rjId, createdAt])
+  @@map("rj_admin_notes")
+}
+
+// ----------------------------------------------------------------------------
+// ONBOARDING (Pending Approval screen)
+// The applicant is an existing User (female) applying to become an RJ.
+// ----------------------------------------------------------------------------
+
+model RJApplication {
+  id              BigInt @id @default(autoincrement())
+  userId          BigInt @map("user_id") // the female User applying
+  appCode         String @unique @map("app_code") @db.VarChar(20) // APP-9281
+  categoryId      Int?   @map("category_id") @db.SmallInt
+  experienceYears Int    @default(0) @map("experience_years") @db.SmallInt
+
+  status   RJApplicationStatus @default(pending)
+  priority RJPriority          @default(medium)
+
+  aadhaarMatch     Boolean  @default(false) @map("aadhaar_match")
+  panMatch         Boolean  @default(false) @map("pan_match")
+  faceIdMatchScore Decimal? @map("face_id_match_score") @db.Decimal(5, 2)
+
+  aiSuitabilityScore Decimal? @map("ai_suitability_score") @db.Decimal(5, 2)
+  communicationScore Decimal? @map("communication_score") @db.Decimal(5, 2)
+  riskScore          Decimal? @map("risk_score") @db.Decimal(5, 2)
+
+  reviewedById    BigInt?   @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  rejectionReason String?   @map("rejection_reason")
+
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   RJCategory? @relation(fields: [categoryId], references: [id])
+  reviewedBy Admin?      @relation(fields: [reviewedById], references: [id])
+
+  documents    RJApplicationDocument[]
+  approvedAsRj RJ?
+
+  @@index([status])
+  @@index([priority])
+  @@index([submittedAt])
+  @@map("rj_applications")
+}
+
+model RJApplicationDocument {
+  id                 BigInt                  @id @default(autoincrement())
+  applicationId      BigInt                  @map("application_id")
+  docType            RJDocType               @map("doc_type")
+  docUrl             String                  @map("doc_url")
+  verificationMethod RJDocVerificationMethod @default(ai) @map("verification_method")
+  aiConfidenceScore  Decimal?                @map("ai_confidence_score") @db.Decimal(5, 2)
+  verifiedAt         DateTime?               @map("verified_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+
+  application RJApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("rj_application_documents")
+}
+
+// ----------------------------------------------------------------------------
+// LIVE STATUS / DEVICE / CALLS
+// ----------------------------------------------------------------------------
+
+model RJDeviceSession {
+  id              BigInt    @id @default(autoincrement())
+  rjId            BigInt    @map("rj_id")
+  deviceModel     String?   @map("device_model") @db.VarChar(100)
+  osVersion       String?   @map("os_version") @db.VarChar(50)
+  batteryPct      Int?      @map("battery_pct") @db.SmallInt
+  networkType     String?   @map("network_type") @db.VarChar(20)
+  networkStrength String?   @map("network_strength") @db.VarChar(20)
+  isActive        Boolean   @default(true) @map("is_active")
+  lastPingAt      DateTime  @default(now()) @map("last_ping_at")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+
+  rj RJ @relation(fields: [rjId], references: [id], onDelete: Cascade)
+
+  @@index([rjId, isActive])
+  @@map("rj_device_sessions")
+}
+
+model RJOfflineLog {
+  id              BigInt        @id @default(autoincrement())
+  rjId            BigInt        @map("rj_id")
+  reason          OfflineReason @default(logged_out)
+  offlineSince    DateTime      @map("offline_since")
+  onlineSince     DateTime?     @map("online_since")
+  durationMinutes Int?          @map("duration_minutes")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  rj RJ @relation(fields: [rjId], references: [id], onDelete: Cascade)
+
+  @@index([rjId, offlineSince])
+  @@map("rj_offline_logs")
+}
+
+// The economic pivot: consumes User's coins, credits RJ's earnings.
+model RJCallSession {
+  id             BigInt       @id @default(autoincrement())
+  publicId       String       @unique @default(uuid()) @map("public_id") @db.Uuid
+  rjId           BigInt       @map("rj_id")
+  userId         BigInt       @map("user_id") // the male caller
+  status         CallStatus   @default(ongoing)
+  quality        CallQuality?
+  startedAt      DateTime     @default(now()) @map("started_at")
+  endedAt        DateTime?    @map("ended_at")
+  durationSecs   Int?         @map("duration_secs")
+  coinsSpent     BigInt       @default(0) @map("coins_spent")
+  earningsAmount Decimal      @default(0) @map("earnings_amount") @db.Decimal(14, 2)
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  rj   RJ   @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  user User @relation("UserCallsAsCaller", fields: [userId], references: [id], onDelete: Cascade)
+
+  review RJReview?
+
+  @@index([rjId, startedAt])
+  @@index([userId, startedAt])
+  @@index([status])
+  @@map("rj_call_sessions")
+}
+
+// ----------------------------------------------------------------------------
+// EARNINGS / WALLET / PAYOUTS (separate from UserWallet — different currency semantics)
+// ----------------------------------------------------------------------------
+
+model RJWallet {
+  rjId      BigInt   @id @map("rj_id")
+  balance   Decimal  @default(0) @db.Decimal(14, 2)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  rj RJ @relation(fields: [rjId], references: [id], onDelete: Cascade)
+
+  @@map("rj_wallets")
+}
+
+model RJWalletTransaction {
+  id            BigInt          @id @default(autoincrement())
+  publicId      String          @unique @default(uuid()) @map("public_id") @db.Uuid
+  rjId          BigInt          @map("rj_id")
+  type          RJWalletTxnType
+  amount        Decimal         @db.Decimal(14, 2)
+  balanceAfter  Decimal         @map("balance_after") @db.Decimal(14, 2)
+  callSessionId BigInt?         @map("call_session_id")
+  description   String?
+  initiatedById BigInt?         @map("initiated_by")
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  rj          RJ     @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  initiatedBy Admin? @relation(fields: [initiatedById], references: [id])
+
+  @@index([rjId, createdAt])
+  @@index([type])
+  @@map("rj_wallet_transactions")
+}
+
+model RJPayout {
+  id                    BigInt         @id @default(autoincrement())
+  publicId              String         @unique @default(uuid()) @map("public_id") @db.Uuid
+  displayCode           String         @unique @map("display_code") @db.VarChar(20) // WD-100001
+  rjId                  BigInt         @map("rj_id")
+  amount                Decimal        @db.Decimal(14, 2)
+  withdrawableBalance   Decimal        @map("withdrawable_balance") @db.Decimal(14, 2) // RJ wallet balance snapshot at request time
+
+  status                RJPayoutStatus @default(pending)
+  method                PaymentMethod?
+  vpa                   String?        @db.VarChar(150)
+  bankAccountMasked     String?        @map("bank_account_masked") @db.VarChar(30)
+  ifscCode              String?        @map("ifsc_code") @db.VarChar(15)
+
+  isHighPriority        Boolean        @default(false) @map("is_high_priority")
+  verificationPct       Int            @default(0) @map("verification_pct") @db.SmallInt
+  verificationChecklist Json           @default("{}") @map("verification_checklist")
+
+  riskScore              Decimal?      @map("risk_score") @db.Decimal(5, 2)
+  riskFlags               Json?        @map("risk_flags")
+
+  rejectionCode          String?       @map("rejection_code") @db.VarChar(30)
+  rejectionReason         String?      @map("rejection_reason")
+
+  appealStatus            AppealStatus? @map("appeal_status")
+  appealMessage            String?      @map("appeal_message")
+  appealReviewedById       BigInt?      @map("appeal_reviewed_by")
+  appealReviewedAt         DateTime?    @map("appeal_reviewed_at")
+
+  approvedAt              DateTime?     @map("approved_at")
+  rejectedAt               DateTime?    @map("rejected_at")
+  processedById             BigInt?     @map("processed_by")
+  processedAt               DateTime?   @map("processed_at")
+  createdAt                 DateTime    @default(now()) @map("created_at")
+  updatedAt                  DateTime   @updatedAt @map("updated_at")
+
+  rj               RJ     @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  processedBy      Admin? @relation(fields: [processedById], references: [id])
+  appealReviewedBy Admin? @relation("RJPayoutAppealReviewedBy", fields: [appealReviewedById], references: [id])
+
+  @@index([rjId, status])
+  @@index([status, createdAt])
+  @@map("rj_payouts")
+}
+
+// ----------------------------------------------------------------------------
+// RATINGS / REVIEWS
+// ----------------------------------------------------------------------------
+
+model RJReview {
+  id            BigInt           @id @default(autoincrement())
+  rjId          BigInt           @map("rj_id")
+  userId        BigInt           @map("user_id") // reviewer (male caller)
+  callSessionId BigInt?          @unique @map("call_session_id")
+  rating        Int              @db.SmallInt
+  reviewText    String?          @map("review_text")
+  sentiment     ReviewSentiment?
+  status        ReviewStatus     @default(published)
+  moderatedById BigInt?          @map("moderated_by")
+  moderatedAt   DateTime?        @map("moderated_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  rj          RJ             @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  user        User           @relation("UserReviewsGiven", fields: [userId], references: [id], onDelete: Cascade)
+  callSession RJCallSession? @relation(fields: [callSessionId], references: [id])
+  moderatedBy Admin?         @relation(fields: [moderatedById], references: [id])
+
+  @@index([rjId, createdAt])
+  @@index([status])
+  @@index([sentiment])
+  @@map("rj_reviews")
+}
+
+// ----------------------------------------------------------------------------
+// PERFORMANCE / BADGES / TIMELINE
+// ----------------------------------------------------------------------------
+
+model RJPerformanceSnapshot {
+  id               BigInt   @id @default(autoincrement())
+  rjId             BigInt   @map("rj_id")
+  snapshotDate     DateTime @map("snapshot_date") @db.Date
+  callsCompleted   Int      @default(0) @map("calls_completed")
+  callsMissed      Int      @default(0) @map("calls_missed")
+  avgDurationSecs  Int?     @map("avg_duration_secs")
+  callQualityScore Decimal? @map("call_quality_score") @db.Decimal(5, 2)
+  attendancePct    Decimal? @map("attendance_pct") @db.Decimal(5, 2)
+  csatScore        Decimal? @map("csat_score") @db.Decimal(5, 2)
+  avgResponseSecs  Int?     @map("avg_response_secs")
+  perfScore        Decimal? @map("perf_score") @db.Decimal(5, 2)
+  grade            String?  @db.VarChar(5)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  rj RJ @relation(fields: [rjId], references: [id], onDelete: Cascade)
+
+  @@unique([rjId, snapshotDate])
+  @@index([rjId, snapshotDate])
+  @@map("rj_performance_snapshots")
+}
+
+model RJBadge {
+  id        BigInt   @id @default(autoincrement())
+  rjId      BigInt   @map("rj_id")
+  badgeName String   @map("badge_name") @db.VarChar(100)
+  awardedAt DateTime @default(now()) @map("awarded_at")
+
+  rj RJ @relation(fields: [rjId], references: [id], onDelete: Cascade)
+
+  @@index([rjId])
+  @@map("rj_badges")
+}
+
+model RJActivityLog {
+  id          BigInt   @id @default(autoincrement())
+  rjId        BigInt   @map("rj_id")
+  eventType   String   @map("event_type") @db.VarChar(50)
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rj RJ @relation(fields: [rjId], references: [id], onDelete: Cascade)
+
+  @@index([rjId, createdAt])
+  @@map("rj_activity_log")
+}

@@ -1,0 +1,42 @@
+// ============================================================================
+// AVATAR MODULE
+// Predefined avatars offered during profile completion. A User either points
+// at one of these (avatarId set, avatarUrl mirrors avatar.imageUrl) or has
+// uploaded their own photo (isCustomAvatar true, avatarUrl + 
+// avatarCloudinaryId point at their own Cloudinary asset). avatarId is kept
+// populated even while a custom photo is active, so removing the custom
+// photo can restore the last predefined pick. Mobile always just reads
+// User.avatarUrl — it never needs to know which case it's in.
+// ============================================================================
+
+enum AvatarGender {
+  male
+  female
+  unisex
+
+  @@map("avatar_gender")
+}
+
+model Avatar {
+  id                 Int          @id @default(autoincrement())
+  publicId           String       @unique @default(uuid()) @map("public_id") @db.Uuid
+  name               String       @db.VarChar(100)
+  gender             AvatarGender
+  imageUrl           String       @map("image_url")
+  cloudinaryPublicId String       @map("cloudinary_public_id")
+  sortOrder          Int          @default(0) @map("sort_order")
+  isActive           Boolean      @default(true) @map("is_active")
+  createdById        BigInt?      @map("created_by")
+  updatedById        BigInt?      @map("updated_by")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  deletedAt          DateTime?    @map("deleted_at")
+
+  createdBy Admin?  @relation("AvatarCreatedBy", fields: [createdById], references: [id])
+  updatedBy Admin?  @relation("AvatarUpdatedBy", fields: [updatedById], references: [id])
+  users     User[]
+
+  @@index([gender, isActive])
+  @@index([sortOrder])
+  @@map("avatars")
+}

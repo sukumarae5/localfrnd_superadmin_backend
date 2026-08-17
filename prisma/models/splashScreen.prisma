@@ -1,0 +1,113 @@
+enum SplashScreenType {
+  welcome
+  promo
+  other
+
+  @@map("splash_screen_type")
+}
+
+enum SplashPlatform {
+  ios
+  android
+  all
+
+  @@map("splash_platform")
+}
+
+enum SplashPriority {
+  p1
+  p2
+  p3
+
+  @@map("splash_priority")
+}
+
+enum SplashStatus {
+  draft
+  scheduled
+  active
+  expired
+
+  @@map("splash_status")
+}
+
+model SplashScreen {
+  id            BigInt           @id @default(autoincrement())
+  publicId      String           @unique @default(uuid()) @map("public_id")
+  displayCode   String           @unique @map("display_code") // e.g. SPL-001
+
+  name          String
+  screenType    SplashScreenType @map("screen_type")
+  campaign      String?
+  platform      SplashPlatform   @default(all)
+  appVersion    String?          @map("app_version") // e.g. "3.2.x" or "3.2.0+"
+  priority      SplashPriority   @default(p3)
+  status        SplashStatus     @default(draft)
+
+  thumbnailUrl  String?          @map("thumbnail_url")
+  thumbnailPublicId String?      @map("thumbnail_cloudinary_id")
+
+  resolutionW   Int?             @map("resolution_w")
+  resolutionH   Int?             @map("resolution_h")
+  durationSec   Decimal?         @map("duration_sec") @db.Decimal(5, 2)
+  sizeKb        Int?             @map("size_kb")
+  format        String?          // svg | webgl | png | jpg
+
+  startAt       DateTime?        @map("start_at")
+  endAt         DateTime?        @map("end_at")
+
+  totalViews    BigInt           @default(0) @map("total_views")
+
+  createdById   BigInt           @map("created_by_id")
+  createdBy     Admin            @relation(fields: [createdById], references: [id])
+
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @default(now()) @updatedAt @map("updated_at")
+  deletedAt     DateTime?        @map("deleted_at")
+
+  activityLogs  SplashScreenActivityLog[]
+  dailyViews    SplashScreenDailyView[]
+
+  @@index([status])
+  @@index([screenType])
+  @@index([platform])
+  @@index([deletedAt])
+  @@map("splash_screens")
+}
+
+model SplashScreenActivityLog {
+  id             BigInt        @id @default(autoincrement())
+  publicId       String        @unique @default(uuid()) @map("public_id")
+
+  splashScreenId BigInt        @map("splash_screen_id")
+  splashScreen   SplashScreen  @relation(fields: [splashScreenId], references: [id])
+
+  action         String        // created | status_changed | scheduled | updated | thumbnail_updated | deleted
+  fromStatus     SplashStatus? @map("from_status")
+  toStatus       SplashStatus? @map("to_status")
+  note           String?
+
+  performedById  BigInt        @map("performed_by_id")
+  performedBy    Admin         @relation(fields: [performedById], references: [id])
+
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@index([splashScreenId])
+  @@map("splash_screen_activity_logs")
+}
+
+model SplashScreenDailyView {
+  id             BigInt       @id @default(autoincrement())
+
+  splashScreenId BigInt       @map("splash_screen_id")
+  splashScreen   SplashScreen @relation(fields: [splashScreenId], references: [id])
+
+  viewDate       DateTime     @map("view_date") @db.Date
+  viewCount      BigInt       @default(0) @map("view_count")
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([splashScreenId, viewDate])
+  @@map("splash_screen_daily_views")
+}
