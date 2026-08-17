@@ -2,12 +2,10 @@
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient({
-  // Uncomment while debugging to see every generated SQL query in the terminal:
-  // log: ["query", "warn", "error"],
+  log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
 });
 
-// Call once at server startup — fails fast with a clear message if the
-// database is unreachable, instead of the first API request silently erroring.
+
 async function connectDB() {
   try {
     await prisma.$connect();
@@ -18,7 +16,6 @@ async function connectDB() {
   }
 }
 
-// Call on graceful shutdown so connections close cleanly.
 async function disconnectDB() {
   await prisma.$disconnect();
   console.log("Database connection closed");

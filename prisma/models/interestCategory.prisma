@@ -1,0 +1,105 @@
+enum InterestStatus {
+  active
+  hidden
+  draft
+  inactive
+
+  @@map("interest_status")
+}
+
+enum InterestVisibility {
+  public
+  private
+
+  @@map("interest_visibility")
+}
+
+enum PopularityLevel {
+  low
+  medium
+  high
+
+  @@map("popularity_level")
+}
+
+model InterestCategory {
+  id          BigInt @id @default(autoincrement())
+  publicId    String @unique @default(uuid()) @map("public_id") @db.Uuid
+  displayCode String @unique @map("display_code") @db.VarChar(20) // IC-001
+
+  name        String @db.VarChar(100)
+  slug        String @unique @db.VarChar(120)
+  description String?
+  icon        String? @db.VarChar(255)
+  type        String  @default("General") @db.VarChar(50)
+
+  status     InterestStatus     @default(draft)
+  visibility InterestVisibility @default(public)
+
+  isFeatured          Boolean         @default(false) @map("is_featured")
+  isTrending          Boolean         @default(false) @map("is_trending")
+  recommendationScore Int             @default(0) @map("recommendation_score") @db.SmallInt
+  popularity          PopularityLevel @default(low)
+  tags                String[]        @default([])
+  sortOrder           Int             @default(0) @map("sort_order")
+
+  createdById BigInt? @map("created_by")
+  updatedById BigInt? @map("updated_by")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  createdBy Admin? @relation("InterestCategoryCreatedBy", fields: [createdById], references: [id])
+  updatedBy Admin? @relation("InterestCategoryUpdatedBy", fields: [updatedById], references: [id])
+
+  languages     InterestCategoryLanguage[]
+  userInterests UserInterest[]
+  rjInterests   RJInterest[]
+
+  @@index([status])
+  @@index([visibility])
+  @@index([isFeatured])
+  @@index([isTrending])
+  @@map("interest_categories")
+}
+
+model InterestCategoryLanguage {
+  interestCategoryId BigInt @map("interest_category_id")
+  languageId          Int    @map("language_id") @db.SmallInt
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  interestCategory InterestCategory @relation(fields: [interestCategoryId], references: [id], onDelete: Cascade)
+  language         Language         @relation(fields: [languageId], references: [id])
+
+  @@id([interestCategoryId, languageId])
+  @@map("interest_category_languages")
+}
+
+model UserInterest {
+  userId             BigInt   @map("user_id")
+  interestCategoryId BigInt   @map("interest_category_id")
+  selectedAt         DateTime @default(now()) @map("selected_at")
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interestCategory InterestCategory @relation(fields: [interestCategoryId], references: [id], onDelete: Cascade)
+
+  @@id([userId, interestCategoryId])
+  @@index([interestCategoryId])
+  @@map("user_interests")
+}
+
+model RJInterest {
+  rjId                BigInt   @map("rj_id")
+  interestCategoryId  BigInt   @map("interest_category_id")
+  assignedAt          DateTime @default(now()) @map("assigned_at")
+  assignedById        BigInt?  @map("assigned_by")
+
+  rj               RJ               @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  interestCategory InterestCategory @relation(fields: [interestCategoryId], references: [id], onDelete: Cascade)
+  assignedBy       Admin?           @relation("RJInterestAssignedBy", fields: [assignedById], references: [id])
+
+  @@id([rjId, interestCategoryId])
+  @@index([interestCategoryId])
+  @@map("rj_interests")
+}

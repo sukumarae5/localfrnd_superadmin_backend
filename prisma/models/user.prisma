@@ -1,23 +1,29 @@
-// ============================================================================
-// CORE USER MODULE
-// ============================================================================
-
 model User {
-  id                    BigInt             @id @default(autoincrement())
-  publicId              String             @unique @default(uuid()) @map("public_id") @db.Uuid
-  displayCode           String             @unique @map("display_code") @db.VarChar(20)
-  fullName              String             @map("full_name") @db.VarChar(150)
-  email                 String?            @unique @db.Citext
-  mobileCountryCode     String             @map("mobile_country_code") @db.VarChar(5)
-  mobileNumber          String             @map("mobile_number") @db.VarChar(15)
-  gender                Gender?
-  dateOfBirth           DateTime?          @map("date_of_birth") @db.Date
-  city                  String?            @db.VarChar(100)
-  state                 String?            @db.VarChar(100)
-  country               String?            @db.VarChar(100)
-  avatarUrl             String?            @map("avatar_url")
+  id                BigInt    @id @default(autoincrement())
+  publicId          String    @unique @default(uuid()) @map("public_id") @db.Uuid
+  displayCode       String    @unique @map("display_code") @db.VarChar(20)
+  fullName          String?   @map("full_name") @db.VarChar(150)
+  email             String?   @unique @db.Citext
+  mobileCountryCode String    @map("mobile_country_code") @db.VarChar(5)
+  mobileNumber      String    @map("mobile_number") @db.VarChar(15)
+  gender            Gender?
+  dateOfBirth       DateTime? @map("date_of_birth") @db.Date
+  city              String?   @db.VarChar(100)
+  state             String?   @db.VarChar(100)
+  country           String?   @db.VarChar(100)
+  locality          String?   @map("locality") @db.VarChar(150)
+  avatarUrl         String?   @map("avatar_url")
+  avatarId           Int?      @map("avatar_id")
+  isCustomAvatar     Boolean   @default(false) @map("is_custom_avatar")
+  avatarCloudinaryId String?   @map("avatar_cloudinary_id")
+
+  avatar Avatar? @relation(fields: [avatarId], references: [id])
+  bio               String?   @map("bio") @db.VarChar(500)
+
   status                UserStatus         @default(active)
   verificationStatus    VerificationStatus @default(unverified) @map("verification_status")
+  verifiedAt            DateTime?          @map("verified_at")
+  verifiedById          BigInt?            @map("verified_by")
   currentSubscriptionId Int?               @map("current_subscription_id") @db.SmallInt
   totalCallsCount       Int                @default(0) @map("total_calls_count")
   registeredAt          DateTime           @default(now()) @map("registered_at")
@@ -32,13 +38,24 @@ model User {
   currentSubscription SubscriptionPlan? @relation(fields: [currentSubscriptionId], references: [id])
   createdBy           Admin?            @relation("UserCreatedBy", fields: [createdById], references: [id])
   updatedBy           Admin?            @relation("UserUpdatedBy", fields: [updatedById], references: [id])
+  verifiedBy          Admin?            @relation("UserVerifiedBy", fields: [verifiedById], references: [id])
 
-  languages     UserLanguage[]
-  subscriptions UserSubscription[]
-  statusHistory UserStatusHistory[]
-  adminNotes    AdminNote[]
-  activityLogs  UserActivityLog[]
-  wallet        UserWallet?
+interests UserInterest[]
+  languages          UserLanguage[]
+  subscriptions      UserSubscription[]
+  statusHistory      UserStatusHistory[]
+  adminNotes         AdminNote[]
+  activityLogs       UserActivityLog[]
+  kycVerifications   KycVerification[]
+  appeals            UserAppeal[]
+  wallet             UserWallet?
+  walletTransactions WalletTransaction[]
+  sessions           UserSession[]
+  feedback           UserFeedback[]
+  rjProfile          RJ?
+  rjApplications     RJApplication[]
+  callsAsCaller      RJCallSession[]     @relation("UserCallsAsCaller")
+  rjReviewsGiven     RJReview[]          @relation("UserReviewsGiven")
 
   @@unique([mobileCountryCode, mobileNumber], name: "uq_users_mobile")
   @@index([status])
@@ -88,10 +105,17 @@ model UserStatusHistory {
   changedById    BigInt?    @map("changed_by")
   createdAt      DateTime   @default(now()) @map("created_at")
 
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  changedBy Admin? @relation(fields: [changedById], references: [id])
+  // --- Moderation additions ---
+  blockType     BlockType?     @map("block_type")
+  expiresAt     DateTime?      @map("expires_at")
+  blockedByType BlockedByType? @default(admin) @map("blocked_by_type")
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  changedBy Admin?       @relation(fields: [changedById], references: [id])
+  appeals   UserAppeal[]
 
   @@index([userId, createdAt])
+  @@index([newStatus, blockType])
   @@map("user_status_history")
 }
 
@@ -121,28 +145,130 @@ model ActivityType {
   @@map("activity_types")
 }
 
+model UserSession {
+  id               BigInt    @id @default(autoincrement())
+  userId           BigInt    @map("user_id")
+  deviceInfo       String?   @map("device_info") @db.VarChar(150) // "iPhone 15", "Chrome"
+  platform         String?   @db.VarChar(30) // Mobile App / Desktop Web / Mobile Web
+  os               String?   @db.VarChar(50) // "iOS 17", "MacOS Sonoma"
+  ipAddress        String?   @map("ip_address") @db.Inet
+  location         String?   @db.VarChar(150)
+  isActive         Boolean   @default(true) @map("is_active")
+  startedAt        DateTime  @default(now()) @map("started_at")
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at")
+  endedAt          DateTime? @map("ended_at")
+  refreshTokenHash String?   @map("refresh_token_hash")
+  expiresAt        DateTime? @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive, lastSeenAt])
+  @@map("user_sessions")
+}
+
 model UserActivityLog {
-  id             BigInt   @id @default(autoincrement())
-  userId         BigInt   @map("user_id")
-  activityTypeId Int      @map("activity_type_id") @db.SmallInt
-  ipAddress      String?  @map("ip_address") @db.Inet
-  metadata       Json     @default("{}")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id             BigInt    @id @default(autoincrement())
+  userId         BigInt    @map("user_id")
+  activityTypeId Int       @map("activity_type_id") @db.SmallInt
+  ipAddress      String?   @map("ip_address") @db.Inet
+  deviceInfo     String?   @map("device_info") @db.VarChar(150) // ← new: "Android", "iOS", "Desktop"
+  location       String?   @db.VarChar(150) // ← new: "London, UK"
+  riskLevel      RiskLevel @default(low) @map("risk_level") // ← new: reuses your existing RiskLevel enum
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   activityType ActivityType @relation(fields: [activityTypeId], references: [id])
 
   @@index([userId, createdAt])
+  @@index([riskLevel])
   @@map("user_activity_log")
 }
 
 model UserWallet {
-  userId    BigInt   @id @map("user_id")
-  balance   Decimal  @default(0) @db.Decimal(14, 2)
-  coins     BigInt   @default(0)
-  updatedAt DateTime @updatedAt @map("updated_at")
+  userId     BigInt    @id @map("user_id")
+  balance    Decimal   @default(0) @db.Decimal(14, 2)
+  coins      BigInt    @default(0)
+  isFrozen   Boolean   @default(false) @map("is_frozen")
+  frozenAt   DateTime? @map("frozen_at")
+  frozenById BigInt?   @map("frozen_by")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  frozenBy Admin? @relation(fields: [frozenById], references: [id])
 
   @@map("user_wallets")
+}
+
+model WalletTransaction {
+  id            BigInt          @id @default(autoincrement())
+  publicId      String          @unique @default(uuid()) @map("public_id") @db.Uuid
+  userId        BigInt          @map("user_id")
+  type          WalletTxnType
+  status        WalletTxnStatus @default(completed)
+  amount        Decimal         @db.Decimal(14, 2)
+  coins         BigInt          @default(0)
+  balanceAfter  Decimal         @map("balance_after") @db.Decimal(14, 2)
+  paymentMethod PaymentMethod?  @map("payment_method")
+  description   String?
+  referenceId   String?         @map("reference_id") @db.VarChar(100) // booking id, order id, etc.
+  initiatedById BigInt?         @map("initiated_by") // set only for manual admin credit/debit
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  initiatedBy Admin? @relation(fields: [initiatedById], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([type])
+  @@index([status])
+  @@map("wallet_transactions")
+}
+
+model UserFeedback {
+  id             BigInt           @id @default(autoincrement())
+  ticketCode     String           @unique @map("ticket_code") @db.VarChar(20) // FB-8291
+  userId         BigInt           @map("user_id")
+  type           FeedbackType
+  subject        String           @db.VarChar(200)
+  message        String
+  category       String?          @db.VarChar(50) // "UI/UX Design", "App Performance"...
+  rating         Int?             @db.SmallInt // 1-5
+  priority       FeedbackPriority @default(low)
+  status         FeedbackStatus   @default(open)
+  assignedToId   BigInt?          @map("assigned_to")
+  resolvedAt     DateTime?        @map("resolved_at")
+  resolutionNote String?          @map("resolution_note")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo Admin? @relation(fields: [assignedToId], references: [id])
+
+  @@index([status])
+  @@index([type])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("user_feedback")
+}
+
+model UserAppeal {
+  id              BigInt       @id @default(autoincrement())
+  userId          BigInt       @map("user_id")
+  statusHistoryId BigInt       @map("status_history_id")
+  message         String
+  status          AppealStatus @default(pending)
+  reviewedById    BigInt?      @map("reviewed_by")
+  reviewedAt      DateTime?    @map("reviewed_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  statusHistory UserStatusHistory @relation(fields: [statusHistoryId], references: [id], onDelete: Cascade)
+  reviewedBy    Admin?            @relation(fields: [reviewedById], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([statusHistoryId])
+  @@map("user_appeals")
 }

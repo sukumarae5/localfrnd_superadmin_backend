@@ -1,0 +1,83 @@
+enum KycDocType {
+  aadhaar
+  passport
+  driving_license
+  voter_id
+
+  @@map("kyc_doc_type")
+}
+
+enum KycRequestStatus {
+  pending_review
+  approved
+  rejected
+  expired
+
+  @@map("kyc_request_status")
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+
+  @@map("risk_level")
+}
+
+model KycVerification {
+  id          BigInt @id @default(autoincrement())
+  requestCode String @unique @map("request_code") @db.VarChar(30) // KYC-INV-89241
+  userId      BigInt @map("user_id")
+
+  // Document details
+  docType     KycDocType @map("doc_type")
+  docNumber   String     @map("doc_number") @db.VarChar(50) // store masked, e.g. XXXX-XXXX-4921
+  docExpiry   DateTime?  @map("doc_expiry") // null = lifetime/no-expiry doc
+  nationality String?    @db.VarChar(50)
+
+  // Evidence
+  selfieUrl       String  @map("selfie_url")
+  selfieQuality   String? @map("selfie_quality") @db.VarChar(20) // e.g. "High"
+  idFrontUrl      String  @map("id_front_url")
+  idFrontReadable Boolean @default(false) @map("id_front_readable")
+  idBackUrl       String? @map("id_back_url")
+  idBackSharp     Boolean @default(false) @map("id_back_sharp")
+
+  // Face match AI
+  faceMatchScore Int? @map("face_match_score") // 0-100
+
+  // OCR extraction
+  ocrName        String?  @map("ocr_name")
+  ocrAddress     String?  @map("ocr_address")
+  nameMatched    Boolean? @map("name_matched")
+  addressMatched Boolean? @map("address_matched")
+
+  // System checklist
+  idAuthenticity Boolean? @map("id_authenticity")
+  faceLiveness   Boolean? @map("face_liveness")
+  sanctionListOk Boolean? @map("sanction_list_ok")
+
+  // Risk
+  riskScore Int       @default(0) @map("risk_score") // 0-100
+  riskLevel RiskLevel @default(low) @map("risk_level")
+
+  // Case status
+  status          KycRequestStatus @default(pending_review)
+  rejectionReason String?          @map("rejection_reason")
+  flagged         Boolean          @default(false)
+
+  submittedAt  DateTime  @default(now()) @map("submitted_at")
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewedById BigInt?   @map("reviewed_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy Admin? @relation(fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@index([submittedAt])
+  @@index([userId])
+  @@map("kyc_verifications")
+}

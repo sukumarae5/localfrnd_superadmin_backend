@@ -1,7 +1,3 @@
-// ============================================================================
-// ADMIN / RBAC MODULE
-// ============================================================================
-
 model AdminRole {
   id          Int      @id @default(autoincrement()) @db.SmallInt
   code        String   @unique @db.VarChar(30)
@@ -33,7 +29,6 @@ model AdminRolePermission {
 
   role       AdminRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
   @@id([roleId, permissionId])
   @@map("admin_role_permissions")
 }
@@ -64,17 +59,41 @@ model Admin {
 
   createdBy     Admin?  @relation("AdminCreatedBy", fields: [createdById], references: [id])
   createdAdmins Admin[] @relation("AdminCreatedBy")
+createdInterestCategories InterestCategory[] @relation("InterestCategoryCreatedBy")
+updatedInterestCategories InterestCategory[] @relation("InterestCategoryUpdatedBy")
+rjInterestsAssigned       RJInterest[]       @relation("RJInterestAssignedBy")
 
   createdUsers      User[]              @relation("UserCreatedBy")
   updatedUsers      User[]              @relation("UserUpdatedBy")
+  verifiedUsers     User[]              @relation("UserVerifiedBy")
+  createdAvatars Avatar[] @relation("AvatarCreatedBy")
+  updatedAvatars Avatar[] @relation("AvatarUpdatedBy")
+  appealReviewedPayouts RJPayout[] @relation("RJPayoutAppealReviewedBy")
   userSubscriptions UserSubscription[]
   userStatusChanges UserStatusHistory[]
   userNotes         AdminNote[]
+  splashScreens            SplashScreen[]
+  splashScreenActivityLogs SplashScreenActivityLog[]
 
-  authSessions   AdminAuthSession[]
-  loginHistory   AdminLoginHistory[]
-  passwordResets AdminPasswordReset[]
-  notifications  AdminNotification[]
+  authSessions       AdminAuthSession[]
+  loginHistory       AdminLoginHistory[]
+  passwordResets     AdminPasswordReset[]
+  notifications      AdminNotification[]
+  kycVerifications   KycVerification[]
+  reviewedAppeals    UserAppeal[]
+  walletTransactions WalletTransaction[]
+  frozenWallets      UserWallet[]
+  assignedFeedback   UserFeedback[]
+
+  createdRjs             RJ[]                  @relation("RJCreatedBy")
+  updatedRjs             RJ[]                  @relation("RJUpdatedBy")
+  verifiedRjs            RJ[]                  @relation("RJVerifiedBy")
+  rjStatusChanges        RJStatusHistory[]
+  rjNotes                RJAdminNote[]
+  rjApplicationsReviewed RJApplication[]
+  rjWalletTxns           RJWalletTransaction[]
+  rjPayoutsProcessed     RJPayout[]
+  rjReviewsModerated     RJReview[]
 
   @@index([roleId])
   @@index([status])
