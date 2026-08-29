@@ -18,7 +18,18 @@ app.use(helmet());
 app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
 app.use(compression());
 app.use(cookieParser());
-app.use(express.json());
+app.use(
+  express.json({
+    // Capture the exact raw bytes as received, before Express parses them.
+    // Webhook HMAC signatures must be verified against these raw bytes, not
+    // against JSON.stringify(req.body) — re-serializing a parsed object can
+    // produce different whitespace than what the sender actually hashed,
+    // causing valid signatures to fail verification.
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
 

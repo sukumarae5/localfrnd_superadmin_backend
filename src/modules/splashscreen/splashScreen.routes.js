@@ -5,9 +5,6 @@ const controller = require('./splashScreen.controller');
 const validate = require('../../middleware/validation.middleware');
 const { authenticate, requireRole } = require('../../middleware/auth.middleware');
 
-// FIX: avatarUpload.middleware was CloudinaryStorage-based (req.file.path),
-// so req.file.buffer was undefined -> service threw "Uploaded thumbnail file is empty".
-// uploadMemory.middleware.js uses multer memory storage, giving req.file.buffer.
 const upload = require('../../middleware/avatarUpload.middleware');
 const { ADMIN_ROLES } = require('../../constants');
 

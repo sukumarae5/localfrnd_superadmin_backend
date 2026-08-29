@@ -29,6 +29,7 @@ model AdminRolePermission {
 
   role       AdminRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
   @@id([roleId, permissionId])
   @@map("admin_role_permissions")
 }
@@ -57,21 +58,35 @@ model Admin {
   role     AdminRole? @relation(fields: [roleId], references: [id])
   language Language?  @relation(fields: [languageId], references: [id])
 
-  createdBy     Admin?  @relation("AdminCreatedBy", fields: [createdById], references: [id])
-  createdAdmins Admin[] @relation("AdminCreatedBy")
-createdInterestCategories InterestCategory[] @relation("InterestCategoryCreatedBy")
-updatedInterestCategories InterestCategory[] @relation("InterestCategoryUpdatedBy")
-rjInterestsAssigned       RJInterest[]       @relation("RJInterestAssignedBy")
+  createdBy                 Admin?             @relation("AdminCreatedBy", fields: [createdById], references: [id])
+  createdAdmins             Admin[]            @relation("AdminCreatedBy")
+  createdInterestCategories InterestCategory[] @relation("InterestCategoryCreatedBy")
+  updatedInterestCategories InterestCategory[] @relation("InterestCategoryUpdatedBy")
+  rjInterestsAssigned       RJInterest[]       @relation("RJInterestAssignedBy")
 
-  createdUsers      User[]              @relation("UserCreatedBy")
-  updatedUsers      User[]              @relation("UserUpdatedBy")
-  verifiedUsers     User[]              @relation("UserVerifiedBy")
-  createdAvatars Avatar[] @relation("AvatarCreatedBy")
-  updatedAvatars Avatar[] @relation("AvatarUpdatedBy")
-  appealReviewedPayouts RJPayout[] @relation("RJPayoutAppealReviewedBy")
-  userSubscriptions UserSubscription[]
-  userStatusChanges UserStatusHistory[]
-  userNotes         AdminNote[]
+  createdUsers          User[]                         @relation("UserCreatedBy")
+  updatedUsers          User[]                         @relation("UserUpdatedBy")
+  verifiedUsers         User[]                         @relation("UserVerifiedBy")
+  createdAvatars        Avatar[]                       @relation("AvatarCreatedBy")
+  updatedAvatars        Avatar[]                       @relation("AvatarUpdatedBy")
+  appealReviewedPayouts RJPayout[]                     @relation("RJPayoutAppealReviewedBy")
+  verifiedBankAccounts  RJBankAccount[]
+  bankAccountLogs       RJBankAccountVerificationLog[]
+
+  bannersCreated        Banner[]               @relation("BannerCreatedBy")
+  bannersUpdated        Banner[]               @relation("BannerUpdatedBy")
+  bannerAuditLogs       BannerAuditLog[]       @relation("BannerAuditPerformedBy")
+  rechargePlansCreated  SubscriptionPlan[]     @relation("RechargePlanCreatedBy")
+  rechargePlansUpdated  SubscriptionPlan[]     @relation("RechargePlanUpdatedBy")
+  rechargePlanAuditLogs RechargePlanAuditLog[] @relation("RechargePlanAuditPerformedBy")
+
+  offersCreated  Offer[]         @relation("OfferCreatedBy")
+  offersUpdated  Offer[]         @relation("OfferUpdatedBy")
+  offerAuditLogs OfferAuditLog[] @relation("OfferAuditPerformedBy")
+
+  userSubscriptions        UserSubscription[]
+  userStatusChanges        UserStatusHistory[]
+  userNotes                AdminNote[]
   splashScreens            SplashScreen[]
   splashScreenActivityLogs SplashScreenActivityLog[]
 

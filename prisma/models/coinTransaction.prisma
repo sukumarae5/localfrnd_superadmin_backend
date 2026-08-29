@@ -1,0 +1,65 @@
+enum CoinTransactionType {
+  purchase
+  admin_credit
+  admin_debit
+  refund
+  usage
+
+  @@map("coin_transaction_type")
+}
+
+enum CoinTransactionStatus {
+  pending
+  success
+  failed
+  refunded
+
+  @@map("coin_transaction_status")
+}
+
+model CoinTransaction {
+  id BigInt @id @default(autoincrement())
+
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  userId BigInt @map("user_id")
+
+  coinPackageId Int? @map("coin_package_id")
+
+  type CoinTransactionType
+
+  status CoinTransactionStatus @default(pending)
+
+  coins Int
+
+  bonusCoins Int @default(0) @map("bonus_coins")
+
+  totalCoins Int @map("total_coins")
+
+  amount Decimal? @db.Decimal(10, 2)
+
+  currency String? @db.VarChar(3)
+
+  paymentProvider String? @map("payment_provider")
+
+  paymentId String? @unique @map("payment_id")
+
+  paymentOrderId String? @map("payment_order_id")
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  coinPackage CoinPackage? @relation(fields: [coinPackageId], references: [id])
+
+  @@index([userId])
+  @@index([coinPackageId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("coin_transactions")
+}

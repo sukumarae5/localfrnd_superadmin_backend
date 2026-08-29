@@ -7,6 +7,7 @@ const languageRoutes = require("../modules/language/language.routes");
 const verificationRoutes = require("../modules/verifications/verifications.routes");
 const moderationRoutes = require("../modules/moderation/moderation.routes");
 const plansRoutes = require("../modules/plans/plans.routes");
+const offersRoutes = require("../modules/offers/offers.routes");
 const walletRoutes = require("../modules/wallet/wallet.routes");
 const activityRoutes = require("../modules/activity/activity.routes");
 const feedbackRoutes = require("../modules/feedback/feedback.routes");
@@ -26,6 +27,12 @@ const avatarRoutes = require("../modules/avatar/avatar.routes");
 const userAvatarRoutes = require("../modules/userAvatar/userAvatar.routes");
 const withdrawalRoutes = require("../modules/withdrawal/withdrawal.routes");  
 const splashScreenRoutes = require('../modules/splashscreen/splashScreen.routes');
+const bannersRoutes = require('../modules/banners/banners.routes');
+const bannersPublicRoutes = require('../modules/banners/banners.public.routes');
+const bankAccountRoutes = require("../modules/bankaccount/bankaccount.routes"); 
+const coinPackageRoutes = require("../modules/coinPackage/coinPackage.routes");
+const coinTransactionRoutes = require("../modules/coinTransaction/coinTransaction.routes");
+const userCoinRoutes = require("../modules/coinTransaction/userCoin.routes");
 
 const router = express.Router();
 
@@ -55,6 +62,12 @@ router.use("/withdrawals", withdrawalRoutes);
 router.use("/avatars", avatarRoutes);       
 router.use("/user", userAvatarRoutes);
 router.use('/splash-screens', splashScreenRoutes); 
-
+router.use("/admin/banners", bannersRoutes);
+router.use("/public/banners", bannersPublicRoutes);
+router.use("/rj/bank-accounts", bankAccountRoutes); 
+router.use("/coin-transactions", coinTransactionRoutes);
+router.use("/coin-packages", coinPackageRoutes);
+router.use("/user/coins", userCoinRoutes);
+router.use("/recharge-offers", offersRoutes);
 
 module.exports = router;

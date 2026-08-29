@@ -89,9 +89,23 @@ function listTransactions({ userId, page, limit }) {
 // ledger row are always written together — never one without the other.
 async function applyTransaction({ userId, type, amount, coins, paymentMethod, description, referenceId, initiatedById }) {
   return prisma.$transaction(async (tx) => {
-    const wallet = await tx.userWallet.findUnique({ where: { userId: BigInt(userId) } });
-    if (!wallet) throw new Error("WALLET_NOT_FOUND");
+    const wallet = await tx.userWallet.findUnique({
+  where: {
+    userId: BigInt(userId),
+  },
+});
 
+if (!wallet) {
+  throw new Error(
+    "WALLET_NOT_FOUND"
+  );
+}
+
+if (wallet.isFrozen) {
+  throw new Error(
+    "WALLET_FROZEN"
+  );
+}
     const delta = type === "debit" ? -amount : amount;
     const coinDelta = type === "debit" ? -(coins || 0) : coins || 0;
     const newBalance = Number(wallet.balance) + delta;
@@ -134,4 +148,57 @@ function setFrozen(userId, isFrozen, frozenById) {
   });
 }
 
-module.exports = { listWallets, getStats, findWalletByUserId, listTransactions, applyTransaction, setFrozen };
+function findUserById(userId) {
+  return prisma.user.findUnique({
+    where: {
+      id: BigInt(userId),
+    },
+
+    select: {
+      id: true,
+      fullName: true,
+      displayCode: true,
+      status: true,
+    },
+  });
+}
+
+
+function createWallet(userId) {
+  return prisma.userWallet.create({
+    data: {
+      userId: BigInt(userId),
+
+      balance: 0,
+
+      coins: 0,
+
+      isFrozen: false,
+    },
+  });
+}
+
+async function createMyWallet(req, res, next) {
+  try {
+    const userId = req.user.id;
+
+    const wallet = await service.createMyWallet(
+      userId
+    );
+
+    return res
+      .status(HTTP_STATUS.CREATED)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.CREATED,
+          wallet,
+          "Wallet created successfully"
+        )
+      );
+
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listWallets, getStats, findWalletByUserId, listTransactions, applyTransaction, setFrozen, findUserById, createWallet, createMyWallet };

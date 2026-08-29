@@ -1,10 +1,10 @@
 // verifications.routes.js
 const express = require("express");
 const controller = require("./verifications.controller");
-const upload = require("../../middleware/upload.middleware");
+const upload = require("../../middleware/avatarUpload.middleware");
 const validate = require("../../middleware/validation.middleware");
 const { authenticate, requireRole } = require("../../middleware/auth.middleware");
-const { authenticateUser } = require("../../middleware/userAuth.middleware");
+const { authenticateUser } = require("../../middleware/UserAuth.middleware");
 const { ADMIN_ROLES } = require("../../constants");
 const { listQuerySchema, decisionSchema, flagSchema, submitSchema, aiResultsSchema } = require("./verifications.validation");
 const { verifyWebhookSignature } = require("../../middleware/webhookSignature.middleware");

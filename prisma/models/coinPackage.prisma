@@ -1,0 +1,40 @@
+enum CoinPackageStatus {
+  active
+  inactive
+
+  @@map("coin_package_status")
+}
+
+model CoinPackage {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  name        String  @db.VarChar(100)
+  description String?
+
+  coins      Int
+  bonusCoins Int @default(0) @map("bonus_coins")
+  totalCoins Int @map("total_coins")
+
+  price    Decimal @db.Decimal(10, 2)
+  currency String  @default("INR") @db.VarChar(3)
+
+  isPopular Boolean @default(false) @map("is_popular")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  status CoinPackageStatus @default(active)
+
+  createdById BigInt? @map("created_by")
+  updatedById BigInt? @map("updated_by")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  transactions CoinTransaction[]
+
+  @@index([status])
+  @@index([sortOrder])
+  @@index([deletedAt])
+  @@map("coin_packages")
+}
