@@ -1,5 +1,5 @@
 const express = require("express");
-const controller = require("./bankAccount.controller");
+const controller = require("./bankaccount.controller");
 const validate = require("../../middleware/validation.middleware");
 const { authenticate, requireRole } = require("../../middleware/auth.middleware");
 const { ADMIN_ROLES } = require("../../constants");
