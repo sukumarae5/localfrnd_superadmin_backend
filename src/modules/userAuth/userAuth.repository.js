@@ -27,11 +27,7 @@ const generateUniqueDisplayCode = async () => {
   throw new Error("Could not generate a unique display code, please retry");
 };
 
-/**
- * Creates a brand-new user on first OTP verification. `fullName` is left
- * unset — this schema change (making it nullable) is required; see README.
- * The app should prompt for profile completion afterwards.
- */
+
 const createUser = async (mobileCountryCode, mobileNumber) => {
   try {
     console.log("Creating user in database...");

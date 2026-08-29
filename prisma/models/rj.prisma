@@ -5,7 +5,6 @@
 // RJCallSession is the pivot linking User spend to RJ earnings.
 // ============================================================================
 
-
 model RJCategory {
   id   Int    @id @default(autoincrement()) @db.SmallInt
   code String @unique @db.VarChar(30)
@@ -77,10 +76,11 @@ model RJ {
   reviews       RJReview[]
   performance   RJPerformanceSnapshot[]
   badges        RJBadge[]
+  bankAccounts  RJBankAccount[]
   activityLogs  RJActivityLog[]
   adminNotes    RJAdminNote[]
-  interests RJInterest[]
-  
+  interests     RJInterest[]
+
   @@index([status])
   @@index([verificationStatus])
   @@index([tier])
@@ -278,40 +278,40 @@ model RJWalletTransaction {
 }
 
 model RJPayout {
-  id                    BigInt         @id @default(autoincrement())
-  publicId              String         @unique @default(uuid()) @map("public_id") @db.Uuid
-  displayCode           String         @unique @map("display_code") @db.VarChar(20) // WD-100001
-  rjId                  BigInt         @map("rj_id")
-  amount                Decimal        @db.Decimal(14, 2)
-  withdrawableBalance   Decimal        @map("withdrawable_balance") @db.Decimal(14, 2) // RJ wallet balance snapshot at request time
+  id                  BigInt  @id @default(autoincrement())
+  publicId            String  @unique @default(uuid()) @map("public_id") @db.Uuid
+  displayCode         String  @unique @map("display_code") @db.VarChar(20) // WD-100001
+  rjId                BigInt  @map("rj_id")
+  amount              Decimal @db.Decimal(14, 2)
+  withdrawableBalance Decimal @map("withdrawable_balance") @db.Decimal(14, 2) // RJ wallet balance snapshot at request time
 
-  status                RJPayoutStatus @default(pending)
-  method                PaymentMethod?
-  vpa                   String?        @db.VarChar(150)
-  bankAccountMasked     String?        @map("bank_account_masked") @db.VarChar(30)
-  ifscCode              String?        @map("ifsc_code") @db.VarChar(15)
+  status            RJPayoutStatus @default(pending)
+  method            PaymentMethod?
+  vpa               String?        @db.VarChar(150)
+  bankAccountMasked String?        @map("bank_account_masked") @db.VarChar(30)
+  ifscCode          String?        @map("ifsc_code") @db.VarChar(15)
 
-  isHighPriority        Boolean        @default(false) @map("is_high_priority")
-  verificationPct       Int            @default(0) @map("verification_pct") @db.SmallInt
-  verificationChecklist Json           @default("{}") @map("verification_checklist")
+  isHighPriority        Boolean @default(false) @map("is_high_priority")
+  verificationPct       Int     @default(0) @map("verification_pct") @db.SmallInt
+  verificationChecklist Json    @default("{}") @map("verification_checklist")
 
-  riskScore              Decimal?      @map("risk_score") @db.Decimal(5, 2)
-  riskFlags               Json?        @map("risk_flags")
+  riskScore Decimal? @map("risk_score") @db.Decimal(5, 2)
+  riskFlags Json?    @map("risk_flags")
 
-  rejectionCode          String?       @map("rejection_code") @db.VarChar(30)
-  rejectionReason         String?      @map("rejection_reason")
+  rejectionCode   String? @map("rejection_code") @db.VarChar(30)
+  rejectionReason String? @map("rejection_reason")
 
-  appealStatus            AppealStatus? @map("appeal_status")
-  appealMessage            String?      @map("appeal_message")
-  appealReviewedById       BigInt?      @map("appeal_reviewed_by")
-  appealReviewedAt         DateTime?    @map("appeal_reviewed_at")
+  appealStatus       AppealStatus? @map("appeal_status")
+  appealMessage      String?       @map("appeal_message")
+  appealReviewedById BigInt?       @map("appeal_reviewed_by")
+  appealReviewedAt   DateTime?     @map("appeal_reviewed_at")
 
-  approvedAt              DateTime?     @map("approved_at")
-  rejectedAt               DateTime?    @map("rejected_at")
-  processedById             BigInt?     @map("processed_by")
-  processedAt               DateTime?   @map("processed_at")
-  createdAt                 DateTime    @default(now()) @map("created_at")
-  updatedAt                  DateTime   @updatedAt @map("updated_at")
+  approvedAt    DateTime? @map("approved_at")
+  rejectedAt    DateTime? @map("rejected_at")
+  processedById BigInt?   @map("processed_by")
+  processedAt   DateTime? @map("processed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   rj               RJ     @relation(fields: [rjId], references: [id], onDelete: Cascade)
   processedBy      Admin? @relation(fields: [processedById], references: [id])
@@ -399,4 +399,62 @@ model RJActivityLog {
 
   @@index([rjId, createdAt])
   @@map("rj_activity_log")
+}
+
+model RJBankAccount {
+  id       BigInt @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+  rjId     BigInt @map("rj_id")
+
+  bankName          String? @map("bank_name") @db.VarChar(100)
+  accountType       String? @map("account_type") @db.VarChar(20) // savings | current
+  accountNumber     String  @map("account_number") @db.VarChar(30) // store full; mask only in API responses
+  ifscCode          String? @map("ifsc_code") @db.VarChar(15)
+  upiId             String? @map("upi_id") @db.VarChar(150)
+  accountHolderName String? @map("account_holder_name") @db.VarChar(100)
+
+  status    BankAccountStatus @default(pending)
+  isPrimary Boolean           @default(false) @map("is_primary")
+
+  aadhaarVerified Boolean         @default(false) @map("aadhaar_verified")
+  panMatchScore   Int?            @map("pan_match_score") @db.SmallInt // 0-100
+  pennyDropStatus PennyDropStatus @default(pending) @map("penny_drop_status")
+
+  isDuplicateFlagged Boolean    @default(false) @map("is_duplicate_flagged")
+  duplicateRiskLevel RiskLevel? @map("duplicate_risk_level") // reuses your existing RiskLevel enum from verification.prisma
+
+  adminNotes      String? @map("admin_notes")
+  rejectionReason String? @map("rejection_reason")
+
+  verifiedById BigInt?   @map("verified_by")
+  verifiedAt   DateTime? @map("verified_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  rj         RJ                             @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  verifiedBy Admin?                         @relation(fields: [verifiedById], references: [id])
+  logs       RJBankAccountVerificationLog[]
+
+  @@index([rjId])
+  @@index([status])
+  @@index([accountNumber])
+  @@index([isDuplicateFlagged])
+  @@map("rj_bank_accounts")
+}
+
+model RJBankAccountVerificationLog {
+  id            BigInt   @id @default(autoincrement())
+  bankAccountId BigInt   @map("bank_account_id")
+  action        String   @db.VarChar(30) // approved | rejected | under_review | penny_drop_retry | note_added
+  note          String?
+  performedById BigInt?  @map("performed_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  bankAccount RJBankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  performedBy Admin?        @relation(fields: [performedById], references: [id])
+
+  @@index([bankAccountId])
+  @@map("rj_bank_account_verification_logs")
 }

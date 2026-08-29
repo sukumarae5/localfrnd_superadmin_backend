@@ -1,0 +1,58 @@
+const OFFER_TYPE = {
+  FLASH_SALE: "FLASH_SALE",
+  BONUS_COINS: "BONUS_COINS",
+  CASHBACK: "CASHBACK",
+  DISCOUNT: "DISCOUNT",
+};
+
+const OFFER_DISCOUNT_TYPE = {
+  PERCENTAGE: "PERCENTAGE",
+  FLAT: "FLAT",
+  MULTIPLIER: "MULTIPLIER",
+  BONUS_COINS: "BONUS_COINS",
+};
+
+const OFFER_STATUS = {
+  DRAFT: "DRAFT",
+  SCHEDULED: "SCHEDULED",
+  ACTIVE: "ACTIVE",
+  PAUSED: "PAUSED",
+  EXPIRED: "EXPIRED",
+};
+
+// Allowed manual status transitions (admin-triggered). Same status -> same
+// status is always allowed by the service layer (idempotent no-op).
+const OFFER_STATUS_TRANSITIONS = {
+  DRAFT: ["SCHEDULED", "ACTIVE"],
+  SCHEDULED: ["ACTIVE", "PAUSED"],
+  ACTIVE: ["PAUSED", "EXPIRED"],
+  PAUSED: ["ACTIVE", "EXPIRED"],
+  EXPIRED: [],
+};
+
+const OFFER_AUDIT_ACTION = {
+  CREATED: "CREATED",
+  UPDATED: "UPDATED",
+  STATUS_CHANGED: "STATUS_CHANGED",
+  PAUSED: "PAUSED",
+  RESUMED: "RESUMED",
+  SCHEDULED: "SCHEDULED",
+  WENT_LIVE: "WENT_LIVE",
+  EXPIRED: "EXPIRED",
+  DELETED: "DELETED",
+  REDEEMED: "REDEEMED",
+};
+
+const OFFER_DISPLAY_CODE_PREFIX = "OFF";
+
+const OFFER_SORT_FIELDS = ["createdAt", "redemptionsCount", "revenueGenerated", "startAt", "endAt"];
+
+module.exports = {
+  OFFER_TYPE,
+  OFFER_DISCOUNT_TYPE,
+  OFFER_STATUS,
+  OFFER_STATUS_TRANSITIONS,
+  OFFER_AUDIT_ACTION,
+  OFFER_DISPLAY_CODE_PREFIX,
+  OFFER_SORT_FIELDS,
+};

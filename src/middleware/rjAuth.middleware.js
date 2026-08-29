@@ -1,9 +1,4 @@
-// src/middleware/rjAuth.middleware.js
-// Authenticates the RJ *mobile app* itself for status/presence endpoints —
-// not an admin. RJ is a 1:1 extension of User, so this reuses the same
-// user JWT issued at OTP login, then resolves the caller's own RJ profile
-// and enforces that the :id in the route belongs to her — an RJ can only
-// report presence for herself, never for another RJ.
+
 const jwtUtil = require("../utils/jwt");
 const ApiError = require("../utils/apiError.util");
 const { HTTP_STATUS } = require("../constants");

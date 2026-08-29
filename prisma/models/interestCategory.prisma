@@ -27,8 +27,8 @@ model InterestCategory {
   publicId    String @unique @default(uuid()) @map("public_id") @db.Uuid
   displayCode String @unique @map("display_code") @db.VarChar(20) // IC-001
 
-  name        String @db.VarChar(100)
-  slug        String @unique @db.VarChar(120)
+  name        String  @db.VarChar(100)
+  slug        String  @unique @db.VarChar(120)
   description String?
   icon        String? @db.VarChar(255)
   type        String  @default("General") @db.VarChar(50)
@@ -65,9 +65,9 @@ model InterestCategory {
 }
 
 model InterestCategoryLanguage {
-  interestCategoryId BigInt @map("interest_category_id")
-  languageId          Int    @map("language_id") @db.SmallInt
-  createdAt           DateTime @default(now()) @map("created_at")
+  interestCategoryId BigInt   @map("interest_category_id")
+  languageId         Int      @map("language_id") @db.SmallInt
+  createdAt          DateTime @default(now()) @map("created_at")
 
   interestCategory InterestCategory @relation(fields: [interestCategoryId], references: [id], onDelete: Cascade)
   language         Language         @relation(fields: [languageId], references: [id])
@@ -90,10 +90,10 @@ model UserInterest {
 }
 
 model RJInterest {
-  rjId                BigInt   @map("rj_id")
-  interestCategoryId  BigInt   @map("interest_category_id")
-  assignedAt          DateTime @default(now()) @map("assigned_at")
-  assignedById        BigInt?  @map("assigned_by")
+  rjId               BigInt   @map("rj_id")
+  interestCategoryId BigInt   @map("interest_category_id")
+  assignedAt         DateTime @default(now()) @map("assigned_at")
+  assignedById       BigInt?  @map("assigned_by")
 
   rj               RJ               @relation(fields: [rjId], references: [id], onDelete: Cascade)
   interestCategory InterestCategory @relation(fields: [interestCategoryId], references: [id], onDelete: Cascade)

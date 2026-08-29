@@ -167,7 +167,7 @@ async function changeAccountStatus(id, { status, reason }, changedById) {
 
   await repo.createStatusHistory({
     rjId: existing.id,
-    previousStatus: existing.user.status,
+    previousStatus: existing.user.status || "active",
     newStatus: status,
     reason: reason || null,
     changedById,

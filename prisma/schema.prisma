@@ -237,6 +237,24 @@ enum RJPayoutStatus {
   @@map("rj_payout_status")
 }
 
+enum BankAccountStatus {
+  pending
+  verified
+  rejected
+  under_review
+
+  @@map("bank_account_status")
+}
+
+enum PennyDropStatus {
+  pending
+  verified
+  failed
+  retry
+
+  @@map("penny_drop_status")
+}
+
 enum ReviewSentiment {
   positive
   neutral
@@ -253,12 +271,17 @@ enum ReviewStatus {
   @@map("review_status")
 }
 
-// ============================================================================
-// SHARED LOOKUP TABLES
-// ============================================================================
+enum RechargePlanType {
+  normal
+  premium
+
+  @@map("recharge_plan_type")
+}
 
 model SubscriptionPlan {
   id                 Int      @id @default(autoincrement()) @db.SmallInt
+  publicId           String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  displayCode        String?  @unique @map("display_code") @db.VarChar(20) // e.g. RF-9021
   code               String   @unique @db.VarChar(30)
   displayName        String   @map("display_name") @db.VarChar(50)
   coins              Int      @default(0)
@@ -272,8 +295,45 @@ model SubscriptionPlan {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
+  // ---- Recharge Plans admin screens additions ----
+  shortDescription    String?          @map("short_description") @db.VarChar(200)
+  detailedDescription String?          @map("detailed_description")
+  planType            RechargePlanType @default(normal) @map("plan_type")
+  badgeText           String?          @map("badge_text") @db.VarChar(40) // e.g. "Best Seller"
+  iconUrl             String?          @map("icon_url")
+  iconPublicId        String?          @map("icon_public_id")
+  bannerImageUrl      String?          @map("banner_image_url")
+  bannerImagePublicId String?          @map("banner_image_public_id")
+  themeColor          String?          @map("theme_color") @db.VarChar(9) // e.g. #4140D1
+
+  baseCoins    Int  @default(0) @map("base_coins")
+  bonusCoins   Int  @default(0) @map("bonus_coins")
+  validityDays Int? @map("validity_days")
+
+  displayPriority Int     @default(1) @map("display_priority")
+  isFeatured      Boolean @default(false) @map("is_featured")
+  isPremiumBadge  Boolean @default(false) @map("is_premium_badge")
+  cashbackEnabled Boolean @default(false) @map("cashback_enabled")
+  isDraft         Boolean @default(false) @map("is_draft")
+
+  // Denormalized analytics counters, kept in sync at purchase/refund/view time
+  viewsCount     Int     @default(0) @map("views_count")
+  purchasesCount Int     @default(0) @map("purchases_count")
+  refundsCount   Int     @default(0) @map("refunds_count")
+  revenueTotal   Decimal @default(0) @map("revenue_total") @db.Decimal(14, 2)
+
+  createdById BigInt?   @map("created_by")
+  updatedById BigInt?   @map("updated_by")
+  deletedAt   DateTime? @map("deleted_at")
+
+  createdBy Admin? @relation("RechargePlanCreatedBy", fields: [createdById], references: [id])
+  updatedBy Admin? @relation("RechargePlanUpdatedBy", fields: [updatedById], references: [id])
+
   users             User[]
   userSubscriptions UserSubscription[]
+  auditLogs         RechargePlanAuditLog[]
 
+  @@index([isActive, isDraft])
+  @@index([planType])
   @@map("subscription_plans")
 }

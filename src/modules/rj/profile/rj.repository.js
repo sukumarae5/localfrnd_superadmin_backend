@@ -32,6 +32,7 @@ const profileInclude = {
       mobileNumber: true,
       avatarUrl: true,
       bio: true,          // ← added, was missing
+      status: true,       // ← added, was missing (needed for account-status history)
       city: true,
       state: true,
       country: true,

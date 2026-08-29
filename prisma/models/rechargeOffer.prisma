@@ -1,0 +1,152 @@
+// ==========================================================================
+// Recharge Offers module — powers the "Recharge Offers" admin screen
+// (promotional/bonus-coin/cashback campaigns with coupon codes), plus audit
+// logging for both Offers and Recharge Plans (SubscriptionPlan, defined in
+// ../schema.prisma).
+//
+// Drop this file into: prisma/models/rechargeOffer.prisma
+// ==========================================================================
+
+enum OfferType {
+  FLASH_SALE
+  BONUS_COINS
+  CASHBACK
+  DISCOUNT
+
+  @@map("offer_type")
+}
+
+enum OfferDiscountType {
+  PERCENTAGE // e.g. 50% Off
+  FLAT // e.g. ₹20 Flat
+  MULTIPLIER // e.g. 2x Value (bonus coins multiplier)
+  BONUS_COINS // flat bonus coin top-up
+
+  @@map("offer_discount_type")
+}
+
+enum OfferStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  EXPIRED
+
+  @@map("offer_status")
+}
+
+model Offer {
+  id          BigInt @id @default(autoincrement())
+  publicId    String @unique @default(uuid()) @map("public_id") @db.Uuid
+  displayCode String @unique @map("display_code") // e.g. OFF-92834
+
+  name        String  @db.VarChar(150)
+  description String?
+
+  offerType     OfferType         @map("offer_type")
+  discountType  OfferDiscountType @map("discount_type")
+  discountValue Decimal           @map("discount_value") @db.Decimal(10, 2) // 50 (%), 20 (flat ₹), 2 (multiplier)
+
+  couponCode String @unique @map("coupon_code") @db.VarChar(30)
+
+  bannerImageUrl      String? @map("banner_image_url")
+  bannerImagePublicId String? @map("banner_image_public_id")
+
+  // Targeting — either applies to every recharge plan, or a specific subset
+  applicableToAll   Boolean @default(true) @map("applicable_to_all")
+  applicablePlanIds Int[]   @default([]) @map("applicable_plan_ids")
+
+  minPurchaseAmount     Decimal? @map("min_purchase_amount") @db.Decimal(10, 2)
+  maxRedemptions        Int?     @map("max_redemptions")
+  maxRedemptionsPerUser Int?     @default(1) @map("max_redemptions_per_user")
+
+  // Analytics counters, kept in sync at redemption time
+  viewsCount       Int     @default(0) @map("views_count")
+  clicksCount      Int     @default(0) @map("clicks_count")
+  redemptionsCount Int     @default(0) @map("redemptions_count")
+  revenueGenerated Decimal @default(0) @map("revenue_generated") @db.Decimal(14, 2)
+  bonusCoinsIssued BigInt  @default(0) @map("bonus_coins_issued")
+
+  status   OfferStatus @default(DRAFT)
+  isPaused Boolean     @default(false) @map("is_paused")
+  startAt  DateTime?   @map("start_at")
+  endAt    DateTime?   @map("end_at")
+
+  createdById BigInt? @map("created_by")
+  updatedById BigInt? @map("updated_by")
+  createdBy   Admin?  @relation("OfferCreatedBy", fields: [createdById], references: [id])
+  updatedBy   Admin?  @relation("OfferUpdatedBy", fields: [updatedById], references: [id])
+
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  redemptions OfferRedemption[]
+  purchases   UserSubscription[]
+  auditLogs   OfferAuditLog[]
+
+  @@index([status])
+  @@index([offerType])
+  @@index([status, startAt, endAt])
+  @@map("recharge_offers")
+}
+
+model OfferRedemption {
+  id      BigInt @id @default(autoincrement())
+  offerId BigInt @map("offer_id")
+  offer   Offer  @relation(fields: [offerId], references: [id])
+
+  userId BigInt @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  // The purchase this coupon was applied to (1:1 — a subscription/purchase
+  // can redeem at most one offer)
+  subscriptionId BigInt?           @unique @map("subscription_id")
+  subscription   UserSubscription? @relation(fields: [subscriptionId], references: [id])
+
+  discountApplied Decimal? @map("discount_applied") @db.Decimal(10, 2)
+  bonusCoinsGiven Int      @default(0) @map("bonus_coins_given")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([offerId, createdAt])
+  @@index([userId])
+  @@map("recharge_offer_redemptions")
+}
+
+model OfferAuditLog {
+  id      BigInt @id @default(autoincrement())
+  offerId BigInt @map("offer_id")
+  offer   Offer  @relation(fields: [offerId], references: [id])
+
+  action String  @db.VarChar(40)
+  note   String?
+
+  performedByAdminId BigInt? @map("performed_by_admin_id")
+  performedByAdmin   Admin?  @relation("OfferAuditPerformedBy", fields: [performedByAdminId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([offerId])
+  @@map("recharge_offer_audit_logs")
+}
+
+model RechargePlanAuditLog {
+  id     BigInt           @id @default(autoincrement())
+  planId Int              @map("plan_id") @db.SmallInt
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  action  String  @db.VarChar(40) // CREATED | UPDATED | PRICE_UPDATED | STATUS_CHANGED | PUBLISHED | DRAFT_SAVED | DUPLICATED | DELETED
+  note    String?
+  changes Json? // { field: { from, to } } snapshot of what changed
+
+  performedByAdminId BigInt? @map("performed_by_admin_id")
+  performedByAdmin   Admin?  @relation("RechargePlanAuditPerformedBy", fields: [performedByAdminId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([planId])
+  @@map("recharge_plan_audit_logs")
+}

@@ -10,8 +10,8 @@ model Language {
   nativeName String?      @map("native_name") @db.VarChar(50)
   type       LanguageType @default(NATIONAL)
 
-  isActive   Boolean @default(true) @map("is_active")
-  isDefault  Boolean @default(false) @map("is_default")
+  isActive  Boolean @default(true) @map("is_active")
+  isDefault Boolean @default(false) @map("is_default")
 
   supportsVoiceCalls Boolean @default(true) @map("supports_voice_calls")
   supportsVideoCalls Boolean @default(true) @map("supports_video_calls")
@@ -19,11 +19,11 @@ model Language {
   supportsInAppChat  Boolean @default(true) @map("supports_in_app_chat")
 
   createdAt DateTime @default(now()) @map("created_at")
-updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  admins        Admin[]
-  userLanguages UserLanguage[]
+  admins             Admin[]
+  userLanguages      UserLanguage[]
   interestCategories InterestCategoryLanguage[]
-  
+
   @@map("languages")
 }

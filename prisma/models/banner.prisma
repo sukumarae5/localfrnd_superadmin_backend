@@ -1,0 +1,136 @@
+// ==========================================================================
+// Banner Module — powers "Promotional Banner Management" AND
+// "Home Banner Management" admin screens (unified via bannerType), plus the
+// mobile-facing "active banners" endpoint.
+//
+// Drop this file into: prisma/models/banner.prisma
+// ==========================================================================
+
+enum BannerType {
+  PROMOTIONAL
+  HOME
+
+  @@map("banner_type")
+}
+
+enum BannerCategory {
+  COIN_OFFER
+  PREMIUM
+  REFERRAL
+  SUBSCRIPTION
+  OTHER
+
+  @@map("banner_category")
+}
+
+enum BannerPosition {
+  TOP_SLIDER
+  MIDDLE_BANNER
+  BOTTOM_BANNER
+
+  @@map("banner_position")
+}
+
+enum BannerPlatform {
+  ANDROID
+  IOS
+  WEB
+
+  @@map("banner_platform")
+}
+
+enum BannerAudience {
+  ALL_USERS
+  NEW_USERS
+  EXISTING_USERS
+  CUSTOM
+
+  @@map("banner_audience")
+}
+
+enum BannerStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  EXPIRED
+  ARCHIVED
+
+  @@map("banner_status")
+}
+
+model Banner {
+  id          BigInt @id @default(autoincrement())
+  publicId    String @unique @default(uuid()) @map("public_id")
+  displayCode String @unique @map("display_code") // e.g. BN-89241
+
+  title      String
+  bannerType BannerType      @map("banner_type")
+  category   BannerCategory  @default(OTHER) @map("category")
+  position   BannerPosition? @map("position") // mainly used by HOME banners
+
+  // Creative
+  imageUrl      String @map("image_url")
+  imagePublicId String @map("image_public_id")
+  imageWidth    Int?   @default(1080) @map("image_width")
+  imageHeight   Int?   @default(608) @map("image_height")
+
+  // Targeting
+  platforms          BannerPlatform[] @default([ANDROID, IOS]) @map("platforms")
+  audience           BannerAudience   @default(ALL_USERS) @map("audience")
+  audienceFilterDays Int?             @map("audience_filter_days")
+  region             String           @default("GLOBAL") @map("region")
+
+  // Action / value
+  deepLink      String? @map("deep_link")
+  campaignValue String? @map("campaign_value")
+
+  // Scheduling & priority
+  priority Int          @default(5) @map("priority") // 1 = highest
+  status   BannerStatus @default(DRAFT) @map("status")
+  startAt  DateTime?    @map("start_at")
+  endAt    DateTime?    @map("end_at")
+
+  // Analytics counters
+  impressionsCount BigInt @default(0) @map("impressions_count")
+  clicksCount      BigInt @default(0) @map("clicks_count")
+  conversionsCount BigInt @default(0) @map("conversions_count")
+
+  // Ownership
+  createdByAdminId BigInt? @map("created_by_admin_id")
+  createdByAdmin   Admin?  @relation("BannerCreatedBy", fields: [createdByAdminId], references: [id])
+
+  updatedByAdminId BigInt? @map("updated_by_admin_id")
+  updatedByAdmin   Admin?  @relation("BannerUpdatedBy", fields: [updatedByAdminId], references: [id])
+
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  auditLogs BannerAuditLog[]
+
+  @@index([bannerType, status])
+  @@index([category])
+  @@index([status, startAt, endAt])
+  @@map("banners")
+}
+
+model BannerAuditLog {
+  id       BigInt @id @default(autoincrement())
+  bannerId BigInt @map("banner_id")
+  banner   Banner @relation(fields: [bannerId], references: [id])
+
+  action String  @map("action")
+  note   String? @map("note")
+
+  performedByAdminId BigInt? @map("performed_by_admin_id")
+  performedByAdmin   Admin?  @relation("BannerAuditPerformedBy", fields: [performedByAdminId], references: [id])
+  performedByLabel   String? @map("performed_by_label")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([bannerId])
+  @@map("banner_audit_logs")
+}

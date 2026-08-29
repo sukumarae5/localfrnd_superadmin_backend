@@ -13,9 +13,15 @@ function verifyWebhookSignature(req, res, next) {
     return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, "Missing webhook signature"));
   }
 
+  // Hash the exact raw bytes received (captured by express.json's verify
+  // callback in app.js), not JSON.stringify(req.body) — re-serializing the
+  // parsed object can produce different whitespace than the sender actually
+  // signed, causing correct signatures to be rejected.
+  const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
+
   const expected = crypto
     .createHmac("sha256", secret)
-    .update(JSON.stringify(req.body))
+    .update(rawBody)
     .digest("hex");
 
   if (signature !== expected) {
