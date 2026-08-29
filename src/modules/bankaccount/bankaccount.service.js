@@ -1,6 +1,6 @@
 const ApiError = require("../../utils/apiError.util");
 const { HTTP_STATUS } = require("../../constants");
-const repo = require("./bankAccount.repository");
+const repo = require("./bankaccount.repository");
 
 function maskAccountNumber(accountNumber) {
   if (!accountNumber) return null;

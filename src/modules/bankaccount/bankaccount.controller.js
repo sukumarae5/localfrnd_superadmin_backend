@@ -1,6 +1,6 @@
 const ApiResponse = require("../../utils/apiError.util");
 const { HTTP_STATUS } = require("../../constants");
-const service = require("./bankAccount.service");
+const service = require("./bankaccount.service");
 
 async function list(req, res, next) {
   try {
