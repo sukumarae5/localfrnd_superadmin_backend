@@ -1,5 +1,7 @@
 // src/modules/rj/application/application.controller.js
 const ApiResponse = require("../../../utils/apiresponse.util");
+const ApiError = require("../../../utils/apiError.util");
+
 const { HTTP_STATUS } = require("../../../constants");
 const service = require("./application.service");
 
@@ -34,11 +36,58 @@ async function submit(req, res, next) {
 
 async function addDocument(req, res, next) {
   try {
-    // ASSUMPTION: same upload middleware pattern as verifications.controller.js
-    // (multer/multer-s3/cloudinary) — adjust field access if different.
-    const docUrl = req.file?.location || req.file?.url || req.file?.path;
-    const application = await service.addDocument(req.params.id, { docType: req.body.docType, docUrl });
-    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { application }, "Document uploaded"));
+    if (!req.file) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Document file is required"
+      );
+    }
+
+    const cloudinary = require("../../../config/cloudinary");
+
+    const folder =
+      process.env.CLOUDINARY_KYC_FOLDER || "lokalfrnd/kyc";
+
+    const publicId = `${req.params.id}_${req.file.fieldname}_${Date.now()}`;
+
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          public_id: publicId,
+          resource_type: "image",
+          type: "authenticated",
+          format: "jpg",
+        },
+        (error, result) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(result);
+          }
+        }
+      );
+
+      stream.end(req.file.buffer);
+    });
+
+    const application = await service.addDocument(
+      req.params.id,
+      {
+        docType: req.body.docType,
+        docUrl: result.secure_url,
+      }
+    );
+
+    res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          { application },
+          "Document uploaded"
+        )
+      );
   } catch (err) {
     next(err);
   }
