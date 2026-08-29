@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const controller = require("./userProfile.controller");
-const { authenticateUser } = require("../../middleware/userAuth.middleware");
+const { authenticateUser } = require("../../middleware/Userauth.middleware");
 const validate = require("../../middleware/validation.middleware");
 // Reusing the SAME schema as admin's profile edits — it already excludes
 // mobile number/status/verificationStatus, which is exactly right for

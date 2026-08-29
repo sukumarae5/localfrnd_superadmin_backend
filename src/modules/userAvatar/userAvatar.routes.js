@@ -3,7 +3,7 @@ const express = require("express");
 const controller = require("./userAvatar.controller");
 const uploadMemory = require("../../middleware/avatarUpload.middleware");
 const validate = require("../../middleware/validation.middleware");
-const { authenticateUser } = require("../../middleware/userAuth.middleware");
+const { authenticateUser } = require("../../middleware/Userauth.middleware");
 const { listUserAvatarsQuerySchema, selectAvatarSchema } = require("./userAvatar.validation");
 
 const router = express.Router();
