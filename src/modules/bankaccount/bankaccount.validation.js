@@ -1,5 +1,5 @@
 const Joi = require("joi");
-const { BANK_ACCOUNT_STATUSES } = require("./bankAccount.constants");
+const { BANK_ACCOUNT_STATUSES } = require("./bankaccount.constants");
 
 const listBankAccountsQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).optional(),

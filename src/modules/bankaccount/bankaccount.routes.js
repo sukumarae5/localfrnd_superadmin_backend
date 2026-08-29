@@ -3,7 +3,7 @@ const controller = require("./bankAccount.controller");
 const validate = require("../../middleware/validation.middleware");
 const { authenticate, requireRole } = require("../../middleware/auth.middleware");
 const { ADMIN_ROLES } = require("../../constants");
-const { listBankAccountsQuerySchema, approveSchema, rejectSchema, noteSchema } = require("./bankAccount.validation");
+const { listBankAccountsQuerySchema, approveSchema, rejectSchema, noteSchema } = require("./bankaccount.validation");
 
 const router = express.Router();
 
