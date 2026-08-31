@@ -1,158 +1,153 @@
-const Joi = require("joi");
+const { prisma } = require("../../config/database");
 
-const { COIN_PACKAGE_STATUS, MAX_PAGE_SIZE } = require("./coinPackage.constants");
+function buildWhere({ search, status }) {
+  const where = {
+    deletedAt: null,
+  };
 
-const createCoinPackageSchema = Joi.object({
-  name: Joi.string()
-    .trim()
-    .min(1)
-    .max(100)
-    .required(),
+  if (status) {
+    where.status = status;
+  }
 
-  description: Joi.string()
-    .trim()
-    .max(500)
-    .allow("", null)
-    .optional(),
+  if (search) {
+    where.name = {
+      contains: search,
+      mode: "insensitive",
+    };
+  }
 
-  coins: Joi.number()
-    .integer()
-    .min(1)
-    .required(),
+  return where;
+}
 
-  bonusCoins: Joi.number()
-    .integer()
-    .min(0)
-    .default(0),
+async function listCoinPackages({ page, limit, search, status }) {
+  const where = buildWhere({ search, status });
 
-  price: Joi.number()
-    .precision(2)
-    .min(0)
-    .required(),
+  const skip = (page - 1) * limit;
 
-  currency: Joi.string()
-    .trim()
-    .uppercase()
-    .length(3)
-    .default("INR"),
+  const [packages, total] = await prisma.$transaction([
+    prisma.coinPackage.findMany({
+      where,
+      skip,
+      take: limit,
 
-  isPopular: Joi.boolean()
-    .default(false),
+      orderBy: [
+        { sortOrder: "asc" },
+        { createdAt: "desc" },
+      ],
+    }),
 
-  sortOrder: Joi.number()
-    .integer()
-    .min(0)
-    .default(0),
+    prisma.coinPackage.count({ where }),
+  ]);
 
-  status: Joi.string()
-    .valid(...Object.values(COIN_PACKAGE_STATUS))
-    .default(COIN_PACKAGE_STATUS.ACTIVE),
-});
+  return {
+    packages,
+    total,
+  };
+}
 
-const updateCoinPackageSchema = Joi.object({
-  name: Joi.string()
-    .trim()
-    .min(1)
-    .max(100)
-    .optional(),
+async function findById(id) {
+  return prisma.coinPackage.findUnique({
+    where: {
+      id: Number(id),
+    },
+  });
+}
 
-  description: Joi.string()
-    .trim()
-    .max(500)
-    .allow("", null)
-    .optional(),
+async function create(data) {
+  return prisma.coinPackage.create({
+    data,
+  });
+}
 
-  coins: Joi.number()
-    .integer()
-    .min(1)
-    .optional(),
+async function update(id, data) {
+  return prisma.coinPackage.update({
+    where: {
+      id: Number(id),
+    },
+    data,
+  });
+}
 
-  bonusCoins: Joi.number()
-    .integer()
-    .min(0)
-    .optional(),
+/*
+Only one package can be flagged isPopular at a
+time. Called before create/update whenever the
+incoming payload sets isPopular = true, so the
+previous popular package(s) get unset first.
+Scoped to non-deleted rows only.
+*/
 
-  price: Joi.number()
-    .precision(2)
-    .min(0)
-    .optional(),
+async function setAllNotPopular() {
+  return prisma.coinPackage.updateMany({
+    where: {
+      isPopular: true,
+      deletedAt: null,
+    },
+    data: {
+      isPopular: false,
+    },
+  });
+}
 
-  currency: Joi.string()
-    .trim()
-    .uppercase()
-    .length(3)
-    .optional(),
+/*
+Sequential loop, not Promise.all -- matches the
+project convention for bulk writes so sortOrder
+updates can't interleave and land out of order.
+*/
 
-  isPopular: Joi.boolean()
-    .optional(),
+async function reorderPackages(packages) {
+  const updated = [];
 
-  sortOrder: Joi.number()
-    .integer()
-    .min(0)
-    .optional(),
+  for (const item of packages) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await prisma.coinPackage.update({
+      where: {
+        id: Number(item.id),
+      },
+      data: {
+        sortOrder: Number(item.sortOrder),
+        updatedById: item.updatedById,
+      },
+    });
 
-  status: Joi.string()
-    .valid(...Object.values(COIN_PACKAGE_STATUS))
-    .optional(),
-}).min(1);
+    updated.push(result);
+  }
 
-const listCoinPackagesSchema = Joi.object({
-  page: Joi.number()
-    .integer()
-    .min(1)
-    .default(1),
+  return updated;
+}
 
-  limit: Joi.number()
-    .integer()
-    .min(1)
-    .max(MAX_PAGE_SIZE)
-    .default(20),
+async function softDelete(id) {
+  return prisma.coinPackage.update({
+    where: {
+      id: Number(id),
+    },
+    data: {
+      deletedAt: new Date(),
+      status: "inactive",
+    },
+  });
+}
 
-  search: Joi.string()
-    .trim()
-    .max(100)
-    .optional(),
+async function getActivePackages() {
+  return prisma.coinPackage.findMany({
+    where: {
+      status: "active",
+      deletedAt: null,
+    },
 
-  status: Joi.string()
-    .valid(...Object.values(COIN_PACKAGE_STATUS))
-    .optional(),
-});
-
-const updateStatusSchema = Joi.object({
-  status: Joi.string()
-    .valid(...Object.values(COIN_PACKAGE_STATUS))
-    .required(),
-});
-
-const updatePopularSchema = Joi.object({
-  isPopular: Joi.boolean()
-    .required(),
-});
-
-const reorderCoinPackagesSchema = Joi.object({
-  packages: Joi.array()
-    .items(
-      Joi.object({
-        id: Joi.number()
-          .integer()
-          .positive()
-          .required(),
-
-        sortOrder: Joi.number()
-          .integer()
-          .min(0)
-          .required(),
-      })
-    )
-    .min(1)
-    .required(),
-});
+    orderBy: [
+      { sortOrder: "asc" },
+      { createdAt: "desc" },
+    ],
+  });
+}
 
 module.exports = {
-  createCoinPackageSchema,
-  updateCoinPackageSchema,
-  listCoinPackagesSchema,
-  updateStatusSchema,
-  updatePopularSchema,
-  reorderCoinPackagesSchema,
+  listCoinPackages,
+  findById,
+  create,
+  update,
+  setAllNotPopular,
+  reorderPackages,
+  softDelete,
+  getActivePackages,
 };

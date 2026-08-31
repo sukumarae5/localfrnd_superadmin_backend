@@ -35,6 +35,13 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", routes);
 
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "LocalFrnd Super Admin Backend is running",
+  });
+});
+
 app.use(notFoundHandler);
 app.use(errorHandler);
 
