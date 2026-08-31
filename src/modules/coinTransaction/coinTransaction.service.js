@@ -1,15 +1,8 @@
-const ApiError =
-  require("../../utils/apiError.util");
+const ApiError = require("../../utils/apiError.util");
+const { HTTP_STATUS } = require("../../constants");
 
-const {
-  HTTP_STATUS,
-} = require("../../constants");
-
-const { prisma } =
-  require("../../config/database");
-
-const repo =
-  require("./coinTransaction.repository");
+const repo = require("./coinTransaction.repository");
+const coinPackageRepo = require("../coinPackage/coinPackage.repository");
 
 function serializeTransaction(item) {
   return {
@@ -18,8 +11,7 @@ function serializeTransaction(item) {
 
     userId: item.userId.toString(),
 
-    coinPackageId:
-      item.coinPackageId,
+    coinPackageId: item.coinPackageId,
 
     type: item.type,
     status: item.status,
@@ -28,19 +20,13 @@ function serializeTransaction(item) {
     bonusCoins: item.bonusCoins,
     totalCoins: item.totalCoins,
 
-    amount: item.amount
-      ? Number(item.amount)
-      : null,
+    amount: item.amount ? Number(item.amount) : null,
 
     currency: item.currency,
 
-    paymentProvider:
-      item.paymentProvider,
-
+    paymentProvider: item.paymentProvider,
     paymentId: item.paymentId,
-
-    paymentOrderId:
-      item.paymentOrderId,
+    paymentOrderId: item.paymentOrderId,
 
     metadata: item.metadata,
 
@@ -52,124 +38,89 @@ function serializeTransaction(item) {
           id: item.user.id.toString(),
           publicId: item.user.publicId,
           fullName: item.user.fullName,
-          mobile: item.user.mobile,
+          mobile: `${item.user.mobileCountryCode}${item.user.mobileNumber}`,
         }
       : undefined,
 
-    coinPackage: item.coinPackage
-      ? item.coinPackage
-      : undefined,
+    coinPackage: item.coinPackage ? item.coinPackage : undefined,
   };
 }
 
-async function listCoinTransactions(
-  query
-) {
-  const page =
-    Number(query.page) || 1;
+async function listCoinTransactions(query) {
+  const page = Number(query.page) || 1;
 
-  const limit = Math.min(
-    Number(query.limit) || 20,
-    100
-  );
+  const limit = Math.min(Number(query.limit) || 20, 100);
 
-  const { transactions, total } =
-    await repo.listTransactions({
-      page,
-      limit,
-      userId: query.userId,
-      coinPackageId:
-        query.coinPackageId,
-      type: query.type,
-      status: query.status,
-    });
+  const { transactions, total } = await repo.listTransactions({
+    page,
+    limit,
+    userId: query.userId,
+    coinPackageId: query.coinPackageId,
+    type: query.type,
+    status: query.status,
+  });
 
   return {
-    transactions:
-      transactions.map(
-        serializeTransaction
-      ),
+    transactions: transactions.map(serializeTransaction),
 
     pagination: {
       page,
       limit,
       total,
-      totalPages:
-        Math.ceil(total / limit),
-    },
-  };
-}
-
-async function getUserCoinBalance(
-  userId
-) {
-  const user =
-    await prisma.user.findUnique({
-      where: {
-        id: BigInt(userId),
-      },
-
-      select: {
-        id: true,
-        coinBalance: true,
-      },
-    });
-
-  if (!user) {
-    throw new ApiError(
-      HTTP_STATUS.NOT_FOUND,
-      "User not found"
-    );
-  }
-
-  return {
-    coinBalance:
-      user.coinBalance,
-  };
-}
-
-async function getUserTransactions(
-  userId,
-  query
-) {
-  const page =
-    Number(query.page) || 1;
-
-  const limit = Math.min(
-    Number(query.limit) || 20,
-    100
-  );
-
-  const {
-    transactions,
-    total,
-  } =
-    await repo.findUserTransactions(
-      userId,
-      page,
-      limit
-    );
-
-  return {
-    transactions:
-      transactions.map(
-        serializeTransaction
-      ),
-
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages:
-        Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit),
     },
   };
 }
 
 /*
-This function should ONLY be called
-after payment verification.
-For example, from Razorpay webhook.
+Coin balance lives on UserWallet, the same table
+Plans/Offers purchases credit. There is no
+coinBalance field on User.
+*/
+
+async function getUserCoinBalance(userId) {
+  const wallet = await repo.getWalletByUserId(userId);
+
+  if (!wallet) {
+    throw new ApiError(HTTP_STATUS.NOT_FOUND, "Wallet not found for this user");
+  }
+
+  return {
+    coinBalance: wallet.coins.toString(),
+    walletBalance: Number(wallet.balance),
+  };
+}
+
+async function getUserTransactions(userId, query) {
+  const page = Number(query.page) || 1;
+
+  const limit = Math.min(Number(query.limit) || 20, 100);
+
+  const { transactions, total } = await repo.findUserTransactions(userId, page, limit);
+
+  return {
+    transactions: transactions.map(serializeTransaction),
+
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+/*
+This function should ONLY be called after payment
+verification. For example, from a Razorpay webhook.
+
+paymentMethod (optional) must be a valid
+PaymentMethod enum value (upi | credit_card |
+wallet | other) if you want this purchase to show
+a payment method on the WalletTransaction row.
+paymentProvider (e.g. "razorpay") is free text and
+is stored on CoinTransaction only, since the enum
+has no matching value for it yet.
 */
 
 async function completePurchase({
@@ -178,110 +129,48 @@ async function completePurchase({
   paymentProvider,
   paymentId,
   paymentOrderId,
+  paymentMethod,
 }) {
-  return prisma.$transaction(
-    async (tx) => {
-      const coinPackage =
-        await tx.coinPackage.findFirst({
-          where: {
-            id:
-              Number(
-                coinPackageId
-              ),
+  const coinPackage = await coinPackageRepo.findById(coinPackageId);
 
-            deletedAt: null,
+  if (!coinPackage || coinPackage.deletedAt || coinPackage.status !== "active") {
+    throw new ApiError(HTTP_STATUS.NOT_FOUND, "Coin package not found");
+  }
 
-            status: "active",
-          },
-        });
+  // Prevent duplicate payment processing.
+  if (paymentId) {
+    const existing = await repo.findSuccessfulTransactionByPaymentId(paymentId);
 
-      if (!coinPackage) {
-        throw new ApiError(
-          HTTP_STATUS.NOT_FOUND,
-          "Coin package not found"
-        );
-      }
-
-      /*
-      Prevent duplicate payment
-      processing.
-      */
-
-      if (paymentId) {
-        const existing =
-          await tx.coinTransaction.findFirst(
-            {
-              where: {
-                paymentId,
-                status: "success",
-              },
-            }
-          );
-
-        if (existing) {
-          return {
-            transaction: existing,
-            alreadyProcessed: true,
-          };
-        }
-      }
-
-      const transaction =
-        await tx.coinTransaction.create({
-          data: {
-            userId:
-              BigInt(userId),
-
-            coinPackageId:
-              coinPackage.id,
-
-            type: "purchase",
-
-            status: "success",
-
-            coins:
-              coinPackage.coins,
-
-            bonusCoins:
-              coinPackage.bonusCoins,
-
-            totalCoins:
-              coinPackage.totalCoins,
-
-            amount:
-              coinPackage.price,
-
-            currency:
-              coinPackage.currency,
-
-            paymentProvider,
-
-            paymentId,
-
-            paymentOrderId,
-          },
-        });
-
-      await tx.user.update({
-        where: {
-          id:
-            BigInt(userId),
-        },
-
-        data: {
-          coinBalance: {
-            increment:
-              coinPackage.totalCoins,
-          },
-        },
-      });
-
+    if (existing) {
       return {
-        transaction,
-        alreadyProcessed: false,
+        transaction: existing,
+        alreadyProcessed: true,
       };
     }
-  );
+  }
+
+  try {
+    const { transaction, wallet } = await repo.completePurchase({
+      userId,
+      coinPackage,
+      paymentProvider,
+      paymentId,
+      paymentOrderId,
+      paymentMethod,
+    });
+
+    return {
+      transaction,
+      wallet,
+      alreadyProcessed: false,
+    };
+  } catch (error) {
+    if (error.message === "WALLET_NOT_FOUND") {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Wallet not found for this user");
+    }
+
+    throw error;
+  }
 }
 
 module.exports = {

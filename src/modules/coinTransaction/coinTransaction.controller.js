@@ -35,7 +35,7 @@ async function getBalance(
 ) {
   try {
     const userId =
-      req.user.userId;
+      req.user.id;
 
     const balance =
       await service.getUserCoinBalance(
@@ -62,7 +62,7 @@ async function getMyTransactions(
 ) {
   try {
     const userId =
-      req.user.userId;
+      req.user.id;
 
     const result =
       await service.getUserTransactions(

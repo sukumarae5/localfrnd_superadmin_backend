@@ -1,13 +1,3 @@
-// prisma/seed.js
-// Run with: npx prisma db seed
-//
-// 1. Ensures all admin_roles rows exist (super_admin, admin, support).
-//    Safe to re-run — uses upsert, so existing rows are left untouched.
-// 2. Creates the very first super admin so you have someone to log in as.
-//    (There's intentionally no public "register admin" endpoint — every
-//    admin after this one should be created by an existing super admin
-//    via POST /api/admins.)
-
 const bcrypt = require("bcrypt");
 const { PrismaClient } = require("@prisma/client");
 
