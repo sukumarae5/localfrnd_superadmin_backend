@@ -4,12 +4,13 @@ const BCRYPT_SALT_ROUNDS = 12;
 
 const REFRESH_COOKIE_NAME = "refreshToken";
 
-const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days — keep in sync with token.util.js
+const REFRESH_TOKEN_EXPIRY_MS =
+  7 * 24 * 60 * 60 * 1000;
 
 const refreshCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  secure: true,
+  sameSite: "none",
   maxAge: REFRESH_TOKEN_EXPIRY_MS,
   path: "/api/auth",
 };
