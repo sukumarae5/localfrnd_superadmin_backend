@@ -8,10 +8,10 @@ const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days — keep in s
 
 const refreshCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production", // requires HTTPS in prod
-  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   maxAge: REFRESH_TOKEN_EXPIRY_MS,
-  path: "/api/auth", // cookie only sent to auth routes
+  path: "/api/auth",
 };
 
 const FAILURE_REASONS = {

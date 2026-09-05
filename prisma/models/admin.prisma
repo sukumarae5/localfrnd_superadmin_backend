@@ -110,6 +110,10 @@ model Admin {
   rjPayoutsProcessed     RJPayout[]
   rjReviewsModerated     RJReview[]
 
+  updatedPaymentGatewayConfigs PaymentGatewayConfig[]
+  refundsRequested             Refund[]               @relation("RefundRequestedBy")
+  refundsResolved              Refund[]               @relation("RefundResolvedBy")
+
   @@index([roleId])
   @@index([status])
   @@map("admins")

@@ -3,6 +3,10 @@ const { HTTP_STATUS } = require("../../constants");
 
 const repo = require("./coinTransaction.repository");
 const coinPackageRepo = require("../coinPackage/coinPackage.repository");
+const paymentGatewayRepo = require("../paymentGateway/paymentGateway.repository");
+const paymentsService = require("../payments/payments.service");
+const razorpayClient = require("../../utils/razorpayClient.util");
+const { decryptSecret } = require("../../utils/secretCipher.util");
 
 function serializeTransaction(item) {
   return {
@@ -173,9 +177,63 @@ async function completePurchase({
   }
 }
 
+/*
+User-facing entry point: creates a Razorpay order for a coin package and
+an `initiated` Payment row to track it. The actual coin credit does NOT
+happen here -- it happens in paymentWebhook.service.js once Razorpay
+confirms the payment via webhook. Returns just enough for the client to
+open Razorpay Checkout (order id + amount + the gateway's key id).
+*/
+async function initiateCoinPurchase(userId, coinPackageId) {
+  const coinPackage = await coinPackageRepo.findById(coinPackageId);
+
+  if (!coinPackage || coinPackage.deletedAt || coinPackage.status !== "active") {
+    throw new ApiError(HTTP_STATUS.NOT_FOUND, "Coin package not found");
+  }
+
+  const gatewayConfig = await paymentGatewayRepo.findByGateway("razorpay");
+
+  if (!gatewayConfig || !gatewayConfig.isActive || !gatewayConfig.apiKeyEncrypted) {
+    throw new ApiError(HTTP_STATUS.CONFLICT, "Razorpay is not configured or is inactive");
+  }
+
+  const keySecret = decryptSecret(gatewayConfig.apiKeyEncrypted);
+  const totalAmount = Number(coinPackage.price);
+
+  const order = await razorpayClient.createOrder({
+    keyId: gatewayConfig.merchantId,
+    keySecret,
+    amountInPaise: Math.round(totalAmount * 100),
+    currency: coinPackage.currency,
+    receipt: `coin-${coinPackage.id}-${userId}-${Date.now()}`,
+    notes: { userId: String(userId), coinPackageId: String(coinPackage.id) },
+  });
+
+  const payment = await paymentsService.recordInitiatedPayment({
+    userId,
+    type: "coin_purchase",
+    gateway: "razorpay",
+    orderId: order.id,
+    baseAmount: totalAmount,
+    gstAmount: 0,
+    totalAmount,
+    currency: coinPackage.currency,
+    coinPackageId: coinPackage.id,
+  });
+
+  return {
+    paymentDisplayCode: payment.displayCode,
+    razorpayOrderId: order.id,
+    razorpayKeyId: gatewayConfig.merchantId,
+    amount: order.amount, // in paise, as Razorpay Checkout expects
+    currency: order.currency,
+  };
+}
+
 module.exports = {
   listCoinTransactions,
   getUserCoinBalance,
   getUserTransactions,
   completePurchase,
+  initiateCoinPurchase,
 };

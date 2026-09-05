@@ -83,8 +83,32 @@ async function getMyTransactions(
   }
 }
 
+async function initiatePurchase(req, res, next) {
+  try {
+    const userId = req.user.id;
+
+    const result = await service.initiateCoinPurchase(
+      userId,
+      req.body.coinPackageId
+    );
+
+    res
+      .status(HTTP_STATUS.CREATED)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.CREATED,
+          result,
+          "Razorpay order created"
+        )
+      );
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   list,
   getBalance,
   getMyTransactions,
+  initiatePurchase,
 };

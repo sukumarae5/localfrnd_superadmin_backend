@@ -1,0 +1,199 @@
+enum PaymentType {
+  coin_purchase
+  subscription
+  rj_tip
+
+  @@map("payment_type")
+}
+
+enum PaymentStatus {
+  initiated
+  authorized
+  success
+  failed
+  refunded
+
+  @@map("payment_status")
+}
+
+enum PaymentGatewayName {
+  razorpay
+  phonepe
+  cashfree
+  paytm
+
+  @@map("payment_gateway_name")
+}
+
+// Canonical record of every external gateway transaction, regardless of
+// what it paid for (coin package, subscription plan, or an RJ tip).
+// This is deliberately separate from WalletTransaction: WalletTransaction
+// is the internal ledger (what happened to the user's balance),
+// Payment is the external ledger (what happened at the gateway).
+// One successful Payment can produce one WalletTransaction/CoinTransaction.
+model Payment {
+  id       BigInt @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  displayCode String @unique @map("display_code") @db.VarChar(20) // PAY-100001
+
+  userId BigInt @map("user_id")
+
+  type PaymentType
+
+  gateway    PaymentGatewayName
+  gatewayRef String?            @map("gateway_ref") @db.VarChar(150) // e.g. razorpay_9f2x1p9z
+  orderId    String?            @map("order_id") @db.VarChar(100)
+  paymentId  String?            @unique @map("gateway_payment_id") @db.VarChar(100)
+
+  baseAmount  Decimal @map("base_amount") @db.Decimal(12, 2)
+  gstAmount   Decimal @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  totalAmount Decimal @map("total_amount") @db.Decimal(12, 2)
+  currency    String  @default("INR") @db.VarChar(3)
+
+  status PaymentStatus @default(initiated)
+
+  paymentMethod PaymentMethod? @map("payment_method")
+
+  // Nullable FKs -- exactly one is set, matching `type` above. Kept
+  // nullable/separate rather than a single polymorphic id so Prisma can
+  // still enforce referential integrity per purchase type.
+  coinTransactionId BigInt? @unique @map("coin_transaction_id")
+  subscriptionId    BigInt? @map("subscription_id")
+
+  // Set at order-initiation time for type = coin_purchase, BEFORE any
+  // CoinTransaction exists -- the webhook handler needs to know which
+  // package to credit once the gateway confirms success. coinTransactionId
+  // above only gets filled in *after* that credit actually happens.
+  coinPackageId Int? @map("coin_package_id")
+
+  failureCode   String? @map("failure_code") @db.VarChar(50)
+  failureReason String? @map("failure_reason")
+
+  initiatedAt  DateTime  @default(now()) @map("initiated_at")
+  authorizedAt DateTime? @map("authorized_at")
+  completedAt  DateTime? @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinTransaction CoinTransaction?  @relation(fields: [coinTransactionId], references: [id])
+  subscription    UserSubscription? @relation(fields: [subscriptionId], references: [id])
+  coinPackage     CoinPackage?      @relation(fields: [coinPackageId], references: [id])
+
+  refunds     Refund[]
+  webhookLogs PaymentWebhookLog[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([gateway])
+  @@index([type])
+  @@map("payments")
+}
+
+// Admin-managed gateway configuration -- one row per gateway, shown on the
+// Payment Gateway Management screen. Secrets are stored encrypted at the
+// application layer; Prisma just sees opaque strings here.
+model PaymentGatewayConfig {
+  id BigInt @id @default(autoincrement())
+
+  gateway     PaymentGatewayName @unique
+  merchantId  String             @map("merchant_id") @db.VarChar(100)
+  environment String             @default("sandbox") @db.VarChar(20) // live | sandbox
+
+  apiKeyEncrypted        String? @map("api_key_encrypted")
+  webhookSecretEncrypted String? @map("webhook_secret_encrypted")
+  webhookStatus          String  @default("disconnected") @map("webhook_status") @db.VarChar(20)
+
+  emiEnabled        Boolean @default(false) @map("emi_enabled")
+  autoRefundEnabled Boolean @default(false) @map("auto_refund_enabled")
+  smartRetryEnabled Boolean @default(false) @map("smart_retry_enabled")
+
+  isActive Boolean @default(true) @map("is_active")
+
+  updatedById BigInt? @map("updated_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  updatedBy Admin? @relation(fields: [updatedById], references: [id])
+
+  @@map("payment_gateway_configs")
+}
+
+enum RefundStatus {
+  pending
+  approved
+  rejected
+  completed
+
+  @@map("refund_status")
+}
+
+// Approval workflow, deliberately separate from WalletTxnType.refund --
+// a refund needs a pending/under-review state BEFORE any wallet movement
+// happens. Once approved, approve() is expected to also write a
+// WalletTransaction (type: refund) crediting the user back.
+model Refund {
+  id       BigInt @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  displayCode String @unique @map("display_code") @db.VarChar(20) // RF-1234
+
+  paymentId BigInt @map("payment_id")
+
+  requestedAmount Decimal  @map("requested_amount") @db.Decimal(12, 2)
+  approvedAmount  Decimal? @map("approved_amount") @db.Decimal(12, 2)
+
+  reason String
+
+  status RefundStatus @default(pending)
+
+  requestedById  BigInt? @map("requested_by")
+  resolvedById   BigInt? @map("resolved_by")
+  resolutionNote String? @map("resolution_note")
+
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  resolvedAt  DateTime? @map("resolved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  payment     Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  requestedBy Admin?  @relation("RefundRequestedBy", fields: [requestedById], references: [id])
+  resolvedBy  Admin?  @relation("RefundResolvedBy", fields: [resolvedById], references: [id])
+
+  @@index([paymentId])
+  @@index([status])
+  @@map("refunds")
+}
+
+// Append-only raw event trail for gateway webhooks -- never mutated after
+// insert. This is what powers the Payment Logs screen (trace id, request
+// id, raw payload, transaction lifecycle timeline).
+model PaymentWebhookLog {
+  id BigInt @id @default(autoincrement())
+
+  traceId   String @map("trace_id") @db.VarChar(50)
+  requestId String @map("request_id") @db.VarChar(50)
+  endpoint  String @db.VarChar(150)
+
+  gateway   PaymentGatewayName
+  eventType String             @map("event_type") @db.VarChar(50) // payment.captured, payment.failed, refund.processed...
+
+  level String @default("info") @db.VarChar(10) // info | warning | error
+
+  rawPayload Json @map("raw_payload")
+
+  paymentId BigInt? @map("payment_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  @@index([paymentId])
+  @@index([gateway, eventType])
+  @@index([createdAt])
+  @@map("payment_webhook_logs")
+}

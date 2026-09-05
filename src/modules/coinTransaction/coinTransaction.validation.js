@@ -46,15 +46,15 @@ const listCoinTransactionsSchema =
       .optional(),
   });
 
-const purchaseCoinPackageSchema =
+const initiatePurchaseSchema =
   Joi.object({
-    paymentProvider: Joi.string()
-      .trim()
-      .valid("razorpay")
-      .default("razorpay"),
+    coinPackageId: Joi.number()
+      .integer()
+      .positive()
+      .required(),
   });
 
 module.exports = {
   listCoinTransactionsSchema,
-  purchaseCoinPackageSchema,
+  initiatePurchaseSchema,
 };

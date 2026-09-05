@@ -33,6 +33,11 @@ const bankAccountRoutes = require("../modules/bankaccount/bankaccount.routes");
 const coinPackageRoutes = require("../modules/coinPackage/coinPackage.routes");
 const coinTransactionRoutes = require("../modules/coinTransaction/coinTransaction.routes");
 const userCoinRoutes = require("../modules/coinTransaction/userCoin.routes");
+const paymentsRoutes = require("../modules/payments/payments.routes");
+const paymentGatewayRoutes = require("../modules/paymentGateway/paymentGateway.routes");
+const refundsRoutes = require("../modules/refunds/refunds.routes");
+const paymentLogsRoutes = require("../modules/paymentLogs/paymentLogs.routes");
+const paymentWebhookRoutes = require("../modules/paymentWebhook/paymentWebhook.routes");
 
 const router = express.Router();
 
@@ -69,5 +74,10 @@ router.use("/coin-transactions", coinTransactionRoutes);
 router.use("/coin-packages", coinPackageRoutes);
 router.use("/user/coins", userCoinRoutes);
 router.use("/recharge-offers", offersRoutes);
+router.use("/payments", paymentsRoutes);
+router.use("/payment-gateways", paymentGatewayRoutes);
+router.use("/refunds", refundsRoutes);
+router.use("/payment-logs", paymentLogsRoutes);
+router.use("/webhooks", paymentWebhookRoutes);
 
 module.exports = router;
