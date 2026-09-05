@@ -32,6 +32,7 @@ model CoinPackage {
   deletedAt DateTime? @map("deleted_at")
 
   transactions CoinTransaction[]
+  payments     Payment[]
 
   @@index([status])
   @@index([sortOrder])

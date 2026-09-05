@@ -17,6 +17,13 @@ const packageController =
     "../coinPackage/coinPackage.controller"
   );
 
+const validate =
+  require("../../middleware/validation.middleware");
+
+const {
+  initiatePurchaseSchema,
+} = require("./coinTransaction.validation");
+
 const router = express.Router();
 
 router.use(authenticateUser);
@@ -34,6 +41,12 @@ router.get(
 router.get(
   "/coins/transactions",
   transactionController.getMyTransactions
+);
+
+router.post(
+  "/coins/purchase/initiate",
+  validate(initiatePurchaseSchema),
+  transactionController.initiatePurchase
 );
 
 module.exports = router;
