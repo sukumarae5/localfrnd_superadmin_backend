@@ -1,0 +1,123 @@
+// ============================================================================
+// SOCIAL MODULE — friend requests, notifications, and 1:1 chat.
+//
+// Deliberately keyed on User.id everywhere, never RJ.id. An RJ is a 1:1
+// extension of a User row (see rj.prisma's header comment), so from a
+// "who can be friends/chat with whom" standpoint a male User and a female
+// RJ are the same kind of thing: a User. The app layer resolves an RJ's
+// underlying userId (already exposed on her serialized profile) before
+// calling into this module — this schema never needs to know RJ exists.
+// ============================================================================
+
+enum FriendshipStatus {
+  pending
+  accepted
+
+  @@map("friendship_status")
+}
+
+enum NotificationType {
+  friend_request
+  friend_accept
+  message
+  call
+  missed_call
+
+  @@map("social_notification_type")
+}
+
+// One row per pair, normalized userId1 < userId2 so the unique constraint
+// catches a request in either direction — mirrors the reference app's
+// normalize(a, b) = {u1: min, u2: max} approach. A rejected/cancelled
+// request is deleted outright rather than stored as a third status, so the
+// same pair can freely re-request afterward; requestedById is what tells
+// you who sent the still-pending row and who therefore must not be the one
+// accepting it.
+model Friendship {
+  id            BigInt           @id @default(autoincrement())
+  publicId      String           @unique @default(uuid()) @map("public_id") @db.Uuid
+  userId1       BigInt           @map("user_id_1")
+  userId2       BigInt           @map("user_id_2")
+  status        FriendshipStatus @default(pending)
+  requestedById BigInt           @map("requested_by")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  user1       User @relation("FriendshipUser1", fields: [userId1], references: [id], onDelete: Cascade)
+  user2       User @relation("FriendshipUser2", fields: [userId2], references: [id], onDelete: Cascade)
+  requestedBy User @relation("FriendshipRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@unique([userId1, userId2], name: "uq_friendship_pair")
+  @@index([status])
+  @@map("friendships")
+}
+
+// Created the moment a Friendship is accepted (see friends.repository.js) —
+// there's no "chat request" step; being friends is what unlocks chat.
+model Conversation {
+  id        BigInt   @id @default(autoincrement())
+  publicId  String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  userId1   BigInt   @map("user_id_1")
+  userId2   BigInt   @map("user_id_2")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user1    User      @relation("ConversationUser1", fields: [userId1], references: [id], onDelete: Cascade)
+  user2    User      @relation("ConversationUser2", fields: [userId2], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([userId1, userId2], name: "uq_conversation_pair")
+  @@map("conversations")
+}
+
+model Message {
+  id             BigInt   @id @default(autoincrement())
+  conversationId BigInt   @map("conversation_id")
+  senderId       BigInt   @map("sender_id")
+  content        String   @db.Text
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  sentAt         DateTime @default(now()) @map("sent_at")
+
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  reads        MessageRead[]
+
+  @@index([conversationId, sentAt])
+  @@map("messages")
+}
+
+// One row per (message, reader) — existence of a row means that user has
+// read that message. Absence of a row from the OTHER participant is what
+// "delivered but unread" / single-vs-double-tick renders from.
+model MessageRead {
+  messageId BigInt   @map("message_id")
+  userId    BigInt   @map("user_id")
+  readAt    DateTime @default(now()) @map("read_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@map("message_reads")
+}
+
+// In-app notification feed (friend requests, accepts, new messages while
+// away). Read/deleted via notifications.repository.js. No FCM/push wiring
+// here — this project has no Firebase config yet (the reference app's
+// notificationService.sendPush has no equivalent), so delivery is DB +
+// Socket.IO only for now; see notifications.service.js's header comment.
+model UserNotification {
+  id         BigInt           @id @default(autoincrement())
+  senderId   BigInt           @map("sender_id")
+  receiverId BigInt           @map("receiver_id")
+  type       NotificationType
+  message    String           @db.VarChar(255)
+  isRead     Boolean          @default(false) @map("is_read")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  sender   User @relation("SocialNotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("SocialNotificationReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId, isRead, createdAt])
+  @@index([senderId, receiverId, type, createdAt])
+  @@map("user_notifications")
+}

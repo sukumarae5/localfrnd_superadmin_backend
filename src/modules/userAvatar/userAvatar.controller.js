@@ -15,8 +15,25 @@ const selectAvatar = asyncHandler(async (req, res) => {
 });
 
 const uploadAvatar = asyncHandler(async (req, res) => {
-  const profile = await service.uploadCustomAvatar(req.user.id, req.file);
-  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { profile }, "Profile photo uploaded"));
+  console.log("========== AVATAR UPLOAD ==========");
+  console.log("req.file:", req.file);
+  console.log("req.files:", req.files);
+  console.log("req.body:", req.body);
+
+  const profile = await service.uploadCustomAvatar(
+    req.user.id,
+    req.file
+  );
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        { profile },
+        "Profile photo uploaded"
+      )
+    );
 });
 
 const removeAvatar = asyncHandler(async (req, res) => {

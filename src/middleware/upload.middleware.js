@@ -4,18 +4,24 @@ const multer = require("multer");
 const ApiError = require("../utils/apiError.util");
 const { HTTP_STATUS } = require("../constants");
 
-const ALLOWED_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-];
-
 const MAX_FILE_SIZE_MB = 5;
 
 const storage = multer.memoryStorage();
 
 function fileFilter(req, file, cb) {
-  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+  console.log("========== MULTER FILE ==========");
+  console.log("fieldname:", file.fieldname);
+  console.log("originalname:", file.originalname);
+  console.log("mimetype:", file.mimetype);
+
+  const allowed = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/octet-stream",
+  ];
+
+  if (!allowed.includes(file.mimetype)) {
     return cb(
       new ApiError(
         HTTP_STATUS.BAD_REQUEST,

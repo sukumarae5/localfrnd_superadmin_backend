@@ -1,4 +1,3 @@
-
 BigInt.prototype.toJSON = function () {
   return this.toString();
 };
@@ -8,9 +7,15 @@ const http=require("http");
 const app=require("./app");
 const {connectDB, disconnectDB}= require("./config/database")
 const { pingRedis } = require("./config/redis");
+const { initSocket } = require("./socket/io");
 
 const port=process.env.PORT || 5000;
 const server=http.createServer(app);
+
+// Attaches Socket.IO to the SAME http.Server Express is already using —
+// does not open a second port. Safe to do before server.listen() below;
+// Socket.IO just registers itself as an "upgrade" handler on the server.
+initSocket(server);
 
 async function startServer() {
   await connectDB(); // fails fast if the DB is unreachable, before accepting requests

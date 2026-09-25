@@ -1,7 +1,7 @@
 // src/modules/userAvatar/userAvatar.routes.js
 const express = require("express");
 const controller = require("./userAvatar.controller");
-const uploadMemory = require("../../middleware/avatarUpload.middleware");
+const upload = require("../../middleware/upload.middleware");
 const validate = require("../../middleware/validation.middleware");
 const { authenticateUser } = require("../../middleware/Userauth.middleware");
 const { listUserAvatarsQuerySchema, selectAvatarSchema } = require("./userAvatar.validation");
@@ -11,7 +11,16 @@ router.use(authenticateUser);
 
 router.get("/avatars", validate(listUserAvatarsQuerySchema, "query"), controller.listAvatars);
 router.post("/profile/avatar/select", validate(selectAvatarSchema), controller.selectAvatar);
-router.post("/profile/avatar/upload", uploadMemory.single("avatar"), controller.uploadAvatar);
+router.post(
+  "/profile/avatar/upload",
+  (req, res, next) => {
+    console.log("========== REQUEST ==========");
+    console.log("content-type:", req.headers["content-type"]);
+    next();
+  },
+  upload.single("avatar"),
+  controller.uploadAvatar
+);
 router.delete("/profile/avatar", controller.removeAvatar);
 
 module.exports = router;

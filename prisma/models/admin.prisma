@@ -64,6 +64,9 @@ model Admin {
   updatedInterestCategories InterestCategory[] @relation("InterestCategoryUpdatedBy")
   rjInterestsAssigned       RJInterest[]       @relation("RJInterestAssignedBy")
 
+  createdLifestyleCategories LifestyleCategory[] @relation("LifestyleCategoryCreatedBy")
+  updatedLifestyleCategories LifestyleCategory[] @relation("LifestyleCategoryUpdatedBy")
+
   createdUsers          User[]                         @relation("UserCreatedBy")
   updatedUsers          User[]                         @relation("UserUpdatedBy")
   verifiedUsers         User[]                         @relation("UserVerifiedBy")
@@ -107,6 +110,8 @@ model Admin {
   rjNotes                RJAdminNote[]
   rjApplicationsReviewed RJApplication[]
   rjWalletTxns           RJWalletTransaction[]
+  rjRingTxnsAdjusted     RJRingTransaction[]
+  rjRingSettingsUpdated  RJRingSetting[]
   rjPayoutsProcessed     RJPayout[]
   rjReviewsModerated     RJReview[]
 

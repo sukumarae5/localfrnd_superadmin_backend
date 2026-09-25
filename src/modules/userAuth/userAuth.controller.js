@@ -49,4 +49,13 @@ const verifyOtp = asyncHandler(async (req, res) => {
   );
 });
 
-module.exports = { sendOtp, verifyOtp };
+const logout = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body || {};
+  await service.logout(req.user.id, refreshToken);
+
+  return res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, { loggedOut: true }, "Logged out successfully"));
+});
+
+module.exports = { sendOtp, verifyOtp, logout };

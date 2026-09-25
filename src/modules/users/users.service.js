@@ -4,6 +4,7 @@ const ApiError = require("../../utils/apiError.util");
 const { HTTP_STATUS } = require("../../constants");
 const { ONLINE_THRESHOLD_MINUTES } = require("./users.constants");
 const repo = require("./users.repository");
+const rjService = require("../rj/profile/rj.service");
 
 // Public-facing user code shown in the admin UI, e.g. "LF-9F3A21B7"
 function generateDisplayCode() {
@@ -227,6 +228,11 @@ dateOfBirth: parseDateOfBirth(dateOfBirth),
   }
 
   const user = await repo.findById(created.id);
+
+  if (user.gender === "female") {
+    await rjService.autoCreateIfEligible(user.id, createdById);
+  }
+
   return serializeUser(user);
 }
 
@@ -256,6 +262,11 @@ dateOfBirth: profileFields.dateOfBirth
   });
 
   const user = await repo.findById(id);
+
+  if (user.gender === "female") {
+    await rjService.autoCreateIfEligible(user.id, updatedById);
+  }
+
   return serializeUser(user);
 }
 

@@ -27,6 +27,14 @@ const submitApplicationSchema = Joi.object({
   experienceYears: Joi.number().integer().min(0).max(60).optional(),
 });
 
+// Used on the user-facing (app) route — userId is never accepted from the
+// body here, it's taken from the authenticated req.user.id so a user can
+// never submit an application on someone else's behalf.
+const applySelfSchema = Joi.object({
+  categoryId: Joi.number().integer().positive().optional(),
+  experienceYears: Joi.number().integer().min(0).max(60).optional(),
+});
+
 const addDocumentSchema = Joi.object({
   docType: Joi.string().valid(...DOC_TYPES).required(),
 });
@@ -56,6 +64,7 @@ const updatePrioritySchema = Joi.object({
 module.exports = {
   listQuerySchema,
   submitApplicationSchema,
+  applySelfSchema,
   addDocumentSchema,
   aiResultsSchema,
   decisionSchema,

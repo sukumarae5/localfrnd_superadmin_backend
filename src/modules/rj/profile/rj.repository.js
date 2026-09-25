@@ -93,6 +93,30 @@ function findCategoriesByIds(ids) {
 
 // Creates the RJ row + wallet in one transaction — an RJ should never exist
 // without a wallet, so this guarantees both or neither.
+// Called the moment a User's gender is set to "female" — no application, no
+// admin review. verificationStatus stays "unverified": that's intentionally
+// resolved later, at the payout/KYC stage (rj_bank_accounts), not here.
+function createAutoApproved({ userId, displayCode, createdById }) {
+  return prisma.$transaction(async (tx) => {
+    const rj = await tx.rJ.create({
+      data: {
+        userId: BigInt(userId),
+        displayCode,
+        approvedAt: new Date(), // "approved" here just means onboarded/live, not KYC-verified
+        createdById: createdById ? BigInt(createdById) : null,
+      },
+    });
+
+    await tx.rJWallet.create({ data: { rjId: rj.id, balance: 0, ringsBalance: 0 } });
+
+    await tx.rJActivityLog.create({
+      data: { rjId: rj.id, eventType: "registered", description: "RJ profile auto-created (gender set to female)" },
+    });
+
+    return rj;
+  });
+}
+
 function createFromApplication({ userId, displayCode, applicationId, categoryId, experienceYears, createdById }) {
   return prisma.$transaction(async (tx) => {
     const rj = await tx.rJ.create({
@@ -188,6 +212,7 @@ module.exports = {
   findByDisplayCode,
   findCategoriesByIds,
   createFromApplication,
+  createAutoApproved,
   setCategories,
   updateRJ,
   softDeleteRJ,

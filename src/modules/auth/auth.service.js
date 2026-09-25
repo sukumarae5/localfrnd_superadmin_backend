@@ -9,6 +9,7 @@ const {
 } = require("../../utils/token.util");
 const repo = require("./auth.repository");
 const { MAX_FAILED_ATTEMPTS, LOCKOUT_DURATION_MS, FAILURE_REASONS } = require("./auth.constants");
+const presenceService = require("../../socket/presence.service");
 
 function serializeAdmin(admin) {
   return {
@@ -114,6 +115,14 @@ async function login({ email, password, ipAddress, userAgent }) {
 
   const accessToken = signAccessToken(admin);
 
+  // Mark online immediately — same PresenceManager the admin dashboard's
+  // Socket.IO connection uses. Never let a presence hiccup fail login itself.
+  try {
+    await presenceService.forceOnline("admin", admin.id.toString());
+  } catch (presenceErr) {
+    console.error("PRESENCE forceOnline(admin) ERROR (login still succeeds):", presenceErr.message);
+  }
+
   return { accessToken, rawRefreshToken: rawToken, admin: serializeAdmin(admin) };
 }
 
@@ -132,9 +141,24 @@ async function refresh({ rawToken }) {
 }
 
 async function logout({ rawToken }) {
-  if (rawToken) {
-    const tokenHash = hashToken(rawToken);
-    await repo.revokeSessionsByTokenHash(tokenHash);
+  if (!rawToken) return;
+
+  const tokenHash = hashToken(rawToken);
+
+  // Looked up before revoking so we know which admin to mark offline — the
+  // logout route intentionally has no `authenticate` middleware (a client
+  // may call it with an already-expired access token), so the refresh-token
+  // cookie is the only reliable identity here, same as refresh() above.
+  const session = await repo.findSessionByTokenHash(tokenHash);
+
+  await repo.revokeSessionsByTokenHash(tokenHash);
+
+  if (session?.admin?.id) {
+    try {
+      await presenceService.forceOffline("admin", session.admin.id.toString(), "logged_out");
+    } catch (presenceErr) {
+      console.error("PRESENCE forceOffline(admin) ERROR (logout still succeeds):", presenceErr.message);
+    }
   }
 }
 

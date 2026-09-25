@@ -31,4 +31,10 @@ const verifyOtpSchema = sendOtpSchema.keys({
     }),
 });
 
-module.exports = { sendOtpSchema, verifyOtpSchema };
+// refreshToken is optional — if the client sends it, the matching
+// UserSession row is closed too; either way presence is still marked offline.
+const logoutSchema = Joi.object({
+  refreshToken: Joi.string().optional(),
+});
+
+module.exports = { sendOtpSchema, verifyOtpSchema, logoutSchema };

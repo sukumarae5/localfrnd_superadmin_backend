@@ -4,7 +4,7 @@ const { prisma } = require("../../../config/database");
 // These three are what actually add to an RJ's earnings ledger.
 // "commission" and "withdrawal" are handled separately — see the note in
 // applyWalletTransaction below.
-const EARNING_CREDIT_TYPES = ["call_earning", "bonus", "referral"];
+const EARNING_CREDIT_TYPES = ["call_earning", "bonus", "referral", "ring_conversion"];
 
 function buildWhere({ search, tier, status }) {
   const where = { deletedAt: null };
