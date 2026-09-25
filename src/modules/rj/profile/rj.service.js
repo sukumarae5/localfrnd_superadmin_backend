@@ -5,6 +5,7 @@ const { HTTP_STATUS } = require("../../../constants");
 const { ONLINE_THRESHOLD_MINUTES } = require("./rj.constants");
 const repo = require("./rj.repository");
 const usersRepo = require("../../users/users.repository");
+const presenceService = require("../../../socket/presence.service");
 
 // RJ-8842 style, matching the Figma badge
 function generateDisplayCode() {
@@ -14,10 +15,24 @@ function generateDisplayCode() {
 // Same active-vs-online distinction as users.service.js: `status` field on
 // RJ is real-time presence (online/offline/busy/on_call), separately from
 // account moderation state which lives on the underlying User.status.
-function isOnline(lastActiveAt) {
-  if (!lastActiveAt) return false;
-  const thresholdMs = ONLINE_THRESHOLD_MINUTES * 60 * 1000;
-  return Date.now() - new Date(lastActiveAt).getTime() < thresholdMs;
+//
+// This used to be a lastActiveAt-recency guess. It's now backed by
+// presenceService.isOnlineSync() — the same PresenceManager the socket layer
+// and login use — so this badge means "she has a live, currently-connected
+// socket right now," not "she was active sometime in the last N minutes."
+// That distinction matters here specifically: this app routes live calls to
+// online RJs, so "online" needs to mean actually reachable, not recently
+// seen. See presence.service.js's module comment for the full reasoning.
+//
+// Note: `listRJs`'s `onlineOnly` filter below still queries the DB by
+// lastActiveAt threshold (a live socket check can't be pushed into that SQL
+// WHERE clause), so it's still possible for the list-filter and this
+// per-row badge to disagree at the margins — e.g. an RJ included by
+// onlineOnly whose socket dropped seconds ago. Worth reconciling later if
+// that shows up as a real admin-panel complaint; leaving it as-is for now
+// rather than reworking the filter query in the same pass as this fix.
+function isOnline(rjId) {
+  return presenceService.isOnlineSync("rj", rjId);
 }
 
 function serializeRJ(rj) {
@@ -38,7 +53,7 @@ function serializeRJ(rj) {
     bio: rj.user.bio, // ← was rj.bio (field doesn't exist on RJ), now reads from the underlying User
     tier: rj.tier,
     status: rj.status,
-    isOnline: isOnline(rj.lastActiveAt),
+    isOnline: isOnline(rj.id),
     verificationStatus: rj.verificationStatus,
     verifiedAt: rj.verifiedAt,
     verifiedByName: rj.verifiedBy?.fullName || null,
@@ -100,6 +115,24 @@ async function listRJs(query) {
 async function getRJById(id) {
   const rj = await repo.findById(id);
   if (!rj || rj.deletedAt) throw new ApiError(HTTP_STATUS.NOT_FOUND, "RJ not found");
+  return serializeRJ(rj);
+}
+
+// Called from users.service.js right after any profile update/create that
+// results in gender === "female". Silently no-ops if she's already an RJ
+// (e.g. profile saved twice, or she was already promoted some other way) —
+// this must be safe to call on every save, not just the first one.
+async function autoCreateIfEligible(userId, createdById) {
+  const existingRJ = await repo.findByUserId(userId);
+  if (existingRJ) return null;
+
+  const created = await repo.createAutoApproved({
+    userId,
+    displayCode: generateDisplayCode(),
+    createdById,
+  });
+
+  const rj = await repo.findById(created.id);
   return serializeRJ(rj);
 }
 
@@ -222,6 +255,7 @@ module.exports = {
   listRJs,
   getRJById,
   createFromApplication,
+  autoCreateIfEligible,
   updateRJ,
   changeAccountStatus,
   changePresenceStatus,

@@ -5,6 +5,7 @@ const { generateAppCode, priorityFromScore } = require("./application.constants"
 const repo = require("./application.repository");
 const usersRepo = require("../../users/users.repository");
 const rjService = require("../profile/rj.service");
+const rjProfileRepo = require("../profile/rj.repository");
 
 function serializeListItem(a) {
   return {
@@ -107,6 +108,18 @@ async function submitApplication({ userId, categoryId, experienceYears }) {
   const user = await usersRepo.findById(userId);
   if (!user || user.deletedAt) throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found");
 
+  // RJ program is female-only by product design (see rj.prisma). Enforced
+  // here — the single choke point both the admin route and the self-apply
+  // (app) route funnel through — rather than in each route separately.
+  if (user.gender !== "female") {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, "Only users with gender set to female can apply as RJ");
+  }
+
+  const existingRJ = await rjProfileRepo.findByUserId(userId);
+  if (existingRJ) {
+    throw new ApiError(HTTP_STATUS.CONFLICT, "This user is already an RJ");
+  }
+
   const alreadyPending = await repo.findPendingByUserId(userId);
   if (alreadyPending) {
     throw new ApiError(HTTP_STATUS.CONFLICT, "This user already has an application in progress");
@@ -122,6 +135,21 @@ async function submitApplication({ userId, categoryId, experienceYears }) {
   });
 
   return serializeDetail(created);
+}
+
+// User-facing entry point (POST /api/user/rj-applications) — userId always
+// comes from the authenticated JWT (req.user.id), never from the body, so a
+// user can only ever apply for herself.
+async function submitOwnApplication(userId, { categoryId, experienceYears }) {
+  return submitApplication({ userId, categoryId, experienceYears });
+}
+
+// GET /api/user/rj-applications/me — lets a User check her own latest
+// application's status without needing the appCode.
+async function getOwnApplication(userId) {
+  const a = await repo.findLatestByUserId(userId);
+  if (!a) throw new ApiError(HTTP_STATUS.NOT_FOUND, "You haven't submitted an RJ application yet");
+  return serializeDetail(a);
 }
 
 async function addDocument(applicationId, { docType, docUrl }) {
@@ -228,6 +256,8 @@ module.exports = {
   listApplications,
   getByAppCode,
   submitApplication,
+  submitOwnApplication,
+  getOwnApplication,
   addDocument,
   applyAiResults,
   decide,

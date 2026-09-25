@@ -11,7 +11,10 @@ async function verifyRazorpayWebhookSignature(req, res, next) {
     const signature = req.headers["x-razorpay-signature"];
 
     if (!signature) {
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, "Missing X-Razorpay-Signature header");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        "Missing X-Razorpay-Signature header"
+      );
     }
 
     const config = await prisma.paymentGatewayConfig.findUnique({
@@ -19,35 +22,64 @@ async function verifyRazorpayWebhookSignature(req, res, next) {
     });
 
     if (!config || !config.webhookSecretEncrypted) {
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, "Razorpay webhook secret is not configured");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        "Razorpay webhook secret is not configured"
+      );
     }
 
-    const webhookSecret = decryptSecret(config.webhookSecretEncrypted);
+    const webhookSecret = decryptSecret(
+      config.webhookSecretEncrypted
+    );
 
-    // Hash the exact raw bytes received (captured by express.json's verify
-    // callback in app.js), not JSON.stringify(req.body) -- re-serializing
-    // the parsed object can produce different whitespace than what
-    // Razorpay actually signed, causing correct signatures to be rejected.
-    // Same principle as the existing KYC webhook middleware.
-    const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
+    const rawBody = req.rawBody;
 
-    const expected = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
+    if (!rawBody) {
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        "Raw request body was not captured"
+      );
+    }
+
+    const expected = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(rawBody)
+      .digest("hex");
+
+    console.log("========== RAZORPAY DEBUG ==========");
+    console.log("Received signature:", signature);
+    console.log("Expected signature:", expected);
+    console.log("Raw body length:", rawBody.length);
+    console.log("Raw body:", rawBody.toString("utf8"));
+    console.log("====================================");
 
     const signatureBuf = Buffer.from(signature, "hex");
     const expectedBuf = Buffer.from(expected, "hex");
 
     const isValid =
-      signatureBuf.length === expectedBuf.length && crypto.timingSafeEqual(signatureBuf, expectedBuf);
+      signatureBuf.length === expectedBuf.length &&
+      crypto.timingSafeEqual(signatureBuf, expectedBuf);
 
     if (!isValid) {
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, "Invalid webhook signature");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        "Invalid webhook signature"
+      );
     }
 
-    req.razorpayEventId = req.headers["x-razorpay-event-id"] || null;
+    req.razorpayEventId =
+      req.headers["x-razorpay-event-id"] || null;
 
     next();
   } catch (error) {
-    next(error instanceof ApiError ? error : new ApiError(HTTP_STATUS.UNAUTHORIZED, "Webhook verification failed"));
+    next(
+      error instanceof ApiError
+        ? error
+        : new ApiError(
+            HTTP_STATUS.UNAUTHORIZED,
+            "Webhook verification failed"
+          )
+    );
   }
 }
 

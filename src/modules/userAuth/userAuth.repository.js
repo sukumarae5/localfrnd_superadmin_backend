@@ -86,9 +86,24 @@ const createUserSession = async (data) => {
   }
 };
 
+/**
+ * Best-effort session close for logout — mirrors the fields already used
+ * elsewhere for an ended session (isActive/endedAt). Silently matches zero
+ * rows if the token doesn't correspond to an active session (e.g. it was
+ * already ended, or the client didn't send one) — logout should never fail
+ * because of this.
+ */
+const endSessionByTokenHash = (userId, refreshTokenHash) => {
+  return prisma.userSession.updateMany({
+    where: { userId, refreshTokenHash, isActive: true },
+    data: { isActive: false, endedAt: new Date() },
+  });
+};
+
 module.exports = {
   findUserByMobile,
   createUser,
   markLogin,
   createUserSession,
+  endSessionByTokenHash,
 };

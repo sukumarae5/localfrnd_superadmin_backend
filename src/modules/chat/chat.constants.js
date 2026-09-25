@@ -1,0 +1,6 @@
+// src/modules/chat/chat.constants.js
+const DEFAULT_MESSAGE_PAGE_SIZE = 30;
+const MAX_MESSAGE_PAGE_SIZE = 100;
+const MAX_MESSAGE_LENGTH = 2000;
+
+module.exports = { DEFAULT_MESSAGE_PAGE_SIZE, MAX_MESSAGE_PAGE_SIZE, MAX_MESSAGE_LENGTH };

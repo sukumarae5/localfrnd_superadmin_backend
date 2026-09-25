@@ -4,7 +4,10 @@ const {redis} = require("../../config/redis");
 const { generateOtp } = require("../../utils/otp");
 const ApiError = require("../../utils/apiError.util");
 const { signUserAccessToken, generateUserRefreshToken } = require("../../utils/userAuthToken.util");
+const { hashToken } = require("../../utils/token.util");
 const { HTTP_STATUS } = require("../../constants");
+const { resolveActorType } = require("../../utils/resolveActorType.util");
+const presenceService = require("../../socket/presence.service");
 const repository = require("./userAuth.repository");
 
 const OTP_LENGTH = 6;
@@ -168,6 +171,16 @@ console.log("Submitted length:", String(submittedOtp).length);
 
     console.log("13. Finished");
 
+    // Mark online immediately — don't wait for the app to open a socket.
+    // Never let a presence hiccup fail the login response itself.
+    try {
+      const actor = await resolveActorType(user.id);
+      const presenceId = actor.type === "rj" ? actor.rjId : String(user.id);
+      await presenceService.forceOnline(actor.type, presenceId);
+    } catch (presenceErr) {
+      console.error("PRESENCE forceOnline ERROR (login still succeeds):", presenceErr.message);
+    }
+
     return {
       user,
       isNewUser,
@@ -181,4 +194,26 @@ console.log("Submitted length:", String(submittedOtp).length);
   }
 };
 
-module.exports = { sendOtp, verifyOtp, extractDeviceMeta };
+/**
+ * Logs the user out: marks them offline immediately (same PresenceManager
+ * the socket layer and login use), and best-effort ends the matching
+ * UserSession row if a refreshToken is provided, so the Activity/Sessions
+ * screen reflects it as ended rather than left dangling.
+ */
+const logout = async (userId, refreshToken) => {
+  if (refreshToken) {
+    try {
+      await repository.endSessionByTokenHash(BigInt(userId), hashToken(refreshToken));
+    } catch (err) {
+      console.error("LOGOUT session-end ERROR (logout still proceeds):", err.message);
+    }
+  }
+
+  const actor = await resolveActorType(userId);
+  const presenceId = actor.type === "rj" ? actor.rjId : String(userId);
+  await presenceService.forceOffline(actor.type, presenceId, "logged_out");
+
+  return { loggedOut: true };
+};
+
+module.exports = { sendOtp, verifyOtp, extractDeviceMeta, logout };

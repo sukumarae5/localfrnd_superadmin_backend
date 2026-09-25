@@ -65,21 +65,23 @@ model RJ {
   updatedBy   Admin?         @relation("RJUpdatedBy", fields: [updatedById], references: [id])
   verifiedBy  Admin?         @relation("RJVerifiedBy", fields: [verifiedById], references: [id])
 
-  categories    RJCategoryMap[]
-  statusHistory RJStatusHistory[]
-  sessions      RJDeviceSession[]
-  offlineLogs   RJOfflineLog[]
-  callsAsRj     RJCallSession[]
-  wallet        RJWallet?
-  walletTxns    RJWalletTransaction[]
-  payouts       RJPayout[]
-  reviews       RJReview[]
-  performance   RJPerformanceSnapshot[]
-  badges        RJBadge[]
-  bankAccounts  RJBankAccount[]
-  activityLogs  RJActivityLog[]
-  adminNotes    RJAdminNote[]
-  interests     RJInterest[]
+  categories      RJCategoryMap[]
+  statusHistory   RJStatusHistory[]
+  sessions        RJDeviceSession[]
+  offlineLogs     RJOfflineLog[]
+  callsAsRj       RJCallSession[]
+  wallet          RJWallet?
+  walletTxns      RJWalletTransaction[]
+  ringTxns        RJRingTransaction[]
+  ringConversions RJRingConversion[]
+  payouts         RJPayout[]
+  reviews         RJReview[]
+  performance     RJPerformanceSnapshot[]
+  badges          RJBadge[]
+  bankAccounts    RJBankAccount[]
+  activityLogs    RJActivityLog[]
+  adminNotes      RJAdminNote[]
+  interests       RJInterest[]
 
   @@index([status])
   @@index([verificationStatus])
@@ -219,23 +221,26 @@ model RJOfflineLog {
 
 // The economic pivot: consumes User's coins, credits RJ's earnings.
 model RJCallSession {
-  id             BigInt       @id @default(autoincrement())
-  publicId       String       @unique @default(uuid()) @map("public_id") @db.Uuid
-  rjId           BigInt       @map("rj_id")
-  userId         BigInt       @map("user_id") // the male caller
-  status         CallStatus   @default(ongoing)
-  quality        CallQuality?
-  startedAt      DateTime     @default(now()) @map("started_at")
-  endedAt        DateTime?    @map("ended_at")
-  durationSecs   Int?         @map("duration_secs")
-  coinsSpent     BigInt       @default(0) @map("coins_spent")
-  earningsAmount Decimal      @default(0) @map("earnings_amount") @db.Decimal(14, 2)
-  createdAt      DateTime     @default(now()) @map("created_at")
-
-  rj   RJ   @relation(fields: [rjId], references: [id], onDelete: Cascade)
-  user User @relation("UserCallsAsCaller", fields: [userId], references: [id], onDelete: Cascade)
-
-  review RJReview?
+  id                  BigInt       @id @default(autoincrement())
+  publicId            String       @unique @default(uuid()) @map("public_id") @db.Uuid
+  rjId                BigInt       @map("rj_id")
+  userId              BigInt       @map("user_id")
+  status              CallStatus   @default(ongoing)
+  quality             CallQuality?
+  callType            CallType?    @map("call_type")
+  callMode            CallMode?    @map("call_mode") // random | direct | local
+  coinRatePerMinute   Int?         @map("coin_rate_per_minute") // coins deducted from the male User per minute
+  rjEarnRatePerMinute Int?         @map("rj_earn_rate_per_minute") // RINGS credited to the RJ per minute (not rupees — see RJWallet.ringsBalance)
+  endReason           String?      @map("end_reason") @db.VarChar(40)
+  startedAt           DateTime     @default(now()) @map("started_at")
+  endedAt             DateTime?    @map("ended_at")
+  durationSecs        Int?         @map("duration_secs")
+  coinsSpent          BigInt       @default(0) @map("coins_spent")
+  earningsAmount      Decimal      @default(0) @map("earnings_amount") @db.Decimal(14, 2) // total RINGS earned this session (kept as Decimal for backward compatibility, always a whole number)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  rj                  RJ           @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  user                User         @relation("UserCallsAsCaller", fields: [userId], references: [id], onDelete: Cascade)
+  review              RJReview?
 
   @@index([rjId, startedAt])
   @@index([userId, startedAt])
@@ -248,9 +253,10 @@ model RJCallSession {
 // ----------------------------------------------------------------------------
 
 model RJWallet {
-  rjId      BigInt   @id @map("rj_id")
-  balance   Decimal  @default(0) @db.Decimal(14, 2)
-  updatedAt DateTime @updatedAt @map("updated_at")
+  rjId         BigInt   @id @map("rj_id")
+  balance      Decimal  @default(0) @db.Decimal(14, 2) // withdrawable rupees — only touched by payouts + ring conversion
+  ringsBalance BigInt   @default(0) @map("rings_balance") // non-monetary points earned from calls; not withdrawable directly
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   rj RJ @relation(fields: [rjId], references: [id], onDelete: Cascade)
 
@@ -275,6 +281,69 @@ model RJWalletTransaction {
   @@index([rjId, createdAt])
   @@index([type])
   @@map("rj_wallet_transactions")
+}
+
+// ----------------------------------------------------------------------------
+// RINGS — non-monetary points earned per call minute (flat rate, same as
+// FEMALE_EARN_RATE in the legacy app). Rings only become real, withdrawable
+// rupees when the RJ manually converts (see RJRingConversion). KYC/bank
+// details are NEVER involved here — that only happens later at RJPayout.
+// ----------------------------------------------------------------------------
+
+model RJRingTransaction {
+  id                BigInt        @id @default(autoincrement())
+  publicId          String        @unique @default(uuid()) @map("public_id") @db.Uuid
+  rjId              BigInt        @map("rj_id")
+  type              RJRingTxnType
+  rings             BigInt // positive for earn, negative for conversion spend
+  ringsBalanceAfter BigInt        @map("rings_balance_after")
+  callSessionId     BigInt?       @map("call_session_id")
+  conversionId      BigInt?       @map("conversion_id")
+  description       String?
+  initiatedById     BigInt?       @map("initiated_by") // set only for manual admin adjustment
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  rj          RJ                @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  conversion  RJRingConversion? @relation(fields: [conversionId], references: [id])
+  initiatedBy Admin?            @relation(fields: [initiatedById], references: [id])
+
+  @@index([rjId, createdAt])
+  @@index([type])
+  @@map("rj_ring_transactions")
+}
+
+// One row per "Convert to Cash" tap by the RJ. This is what actually moves
+// value from ringsBalance -> RJWallet.balance (withdrawable).
+model RJRingConversion {
+  id                    BigInt   @id @default(autoincrement())
+  publicId              String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  displayCode           String   @unique @map("display_code") @db.VarChar(20) // CNV-10234
+  rjId                  BigInt   @map("rj_id")
+  ringsConverted        BigInt   @map("rings_converted")
+  conversionRateApplied Decimal  @map("conversion_rate_applied") @db.Decimal(10, 4) // rupees per ring, snapshotted at conversion time
+  amountCredited        Decimal  @map("amount_credited") @db.Decimal(14, 2)
+  ringsBalanceAfter     BigInt   @map("rings_balance_after")
+  walletBalanceAfter    Decimal  @map("wallet_balance_after") @db.Decimal(14, 2)
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  rj       RJ                  @relation(fields: [rjId], references: [id], onDelete: Cascade)
+  ringTxns RJRingTransaction[]
+
+  @@index([rjId, createdAt])
+  @@map("rj_ring_conversions")
+}
+
+// Singleton admin-configurable setting — there is only ever one row (id = 1).
+model RJRingSetting {
+  id                  Int      @id @default(1)
+  conversionRate      Decimal  @default(1.0) @map("conversion_rate") @db.Decimal(10, 4) // rupees credited per 1 ring
+  minConvertibleRings BigInt   @default(500) @map("min_convertible_rings")
+  updatedById         BigInt?  @map("updated_by")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  updatedBy Admin? @relation(fields: [updatedById], references: [id])
+
+  @@map("rj_ring_settings")
 }
 
 model RJPayout {

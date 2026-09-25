@@ -39,25 +39,44 @@ model User {
   updatedBy           Admin?            @relation("UserUpdatedBy", fields: [updatedById], references: [id])
   verifiedBy          Admin?            @relation("UserVerifiedBy", fields: [verifiedById], references: [id])
 
-  interests          UserInterest[]
-  languages          UserLanguage[]
-  subscriptions      UserSubscription[]
-  statusHistory      UserStatusHistory[]
-  adminNotes         AdminNote[]
-  activityLogs       UserActivityLog[]
-  kycVerifications   KycVerification[]
-  appeals            UserAppeal[]
-  wallet             UserWallet?
-  walletTransactions WalletTransaction[]
-  sessions           UserSession[]
-  feedback           UserFeedback[]
-  rjProfile          RJ?
-  rjApplications     RJApplication[]
-  callsAsCaller      RJCallSession[]     @relation("UserCallsAsCaller")
-  rjReviewsGiven     RJReview[]          @relation("UserReviewsGiven")
-  offerRedemptions   OfferRedemption[]
-  coinTransactions   CoinTransaction[]
-  payments           Payment[]
+  interests              UserInterest[]
+  languages              UserLanguage[]
+  userLifestyles         UserLifestyle[]
+  subscriptions          UserSubscription[]
+  statusHistory          UserStatusHistory[]
+  adminNotes             AdminNote[]
+  activityLogs           UserActivityLog[]
+  kycVerifications       KycVerification[]
+  appeals                UserAppeal[]
+  wallet                 UserWallet?
+  walletTransactions     WalletTransaction[]
+  sessions               UserSession[]
+  feedback               UserFeedback[]
+  rjProfile              RJ?
+  rjApplications         RJApplication[]
+  callsAsCaller          RJCallSession[]     @relation("UserCallsAsCaller")
+  rjReviewsGiven         RJReview[]          @relation("UserReviewsGiven")
+  offerRedemptions       OfferRedemption[]
+  coinTransactions       CoinTransaction[]
+  payments               Payment[]
+  // Friendship relations
+  friendshipsAsUser1     Friendship[]        @relation("FriendshipUser1")
+  friendshipsAsUser2     Friendship[]        @relation("FriendshipUser2")
+  friendshipRequestsSent Friendship[]        @relation("FriendshipRequestedBy")
+
+  // Conversation relations
+  conversationsAsUser1 Conversation[] @relation("ConversationUser1")
+  conversationsAsUser2 Conversation[] @relation("ConversationUser2")
+
+  // Chat messages
+  messagesSent Message[]
+
+  // Message reads
+  messageReads MessageRead[]
+
+  // Social notifications
+  socialNotificationsSent     UserNotification[] @relation("SocialNotificationSender")
+  socialNotificationsReceived UserNotification[] @relation("SocialNotificationReceiver")
 
   @@unique([mobileCountryCode, mobileNumber], name: "uq_users_mobile")
   @@index([status])

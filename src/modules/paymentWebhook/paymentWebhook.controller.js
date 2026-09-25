@@ -15,11 +15,13 @@ async function razorpay(req, res, next) {
     const result = await service.handleRazorpayEvent({
       payload: req.body,
       eventId: req.razorpayEventId,
-      requestId: req.headers["x-request-id"] || null,
+      requestId: req.headers["x-request-id"] || `razorpay-${Date.now()}`,
       endpoint: req.originalUrl,
     });
 
-    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result, "Webhook received"));
+    res
+      .status(HTTP_STATUS.OK)
+      .json(new ApiResponse(HTTP_STATUS.OK, result, "Webhook received"));
   } catch (error) {
     // Only truly unexpected errors (e.g. DB down) reach here -- business
     // logic failures are already caught and logged inside the service.

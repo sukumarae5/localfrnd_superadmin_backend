@@ -34,6 +34,29 @@ async function submit(req, res, next) {
   }
 }
 
+// User-facing — POST /api/user/rj-applications. userId comes from the
+// authenticated user's own token (req.user.id), never from req.body.
+async function submitSelf(req, res, next) {
+  try {
+    const application = await service.submitOwnApplication(req.user.id, req.body);
+    res
+      .status(HTTP_STATUS.CREATED)
+      .json(new ApiResponse(HTTP_STATUS.CREATED, { application }, "Application submitted"));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// User-facing — GET /api/user/rj-applications/me
+async function getOwn(req, res, next) {
+  try {
+    const application = await service.getOwnApplication(req.user.id);
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { application }));
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function addDocument(req, res, next) {
   try {
     if (!req.file) {
@@ -142,6 +165,8 @@ module.exports = {
   list,
   getOne,
   submit,
+  submitSelf,
+  getOwn,
   addDocument,
   aiResults,
   decide,

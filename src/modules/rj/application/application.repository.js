@@ -142,6 +142,16 @@ function createApplication(data) {
   return prisma.rJApplication.create({ data, include: detailInclude });
 }
 
+// Used by the self-service "check my application status" endpoint —
+// regardless of status (pending/approved/rejected), not just active ones.
+function findLatestByUserId(userId) {
+  return prisma.rJApplication.findFirst({
+    where: { userId: BigInt(userId) },
+    orderBy: { submittedAt: "desc" },
+    include: detailInclude,
+  });
+}
+
 function addDocument(applicationId, data) {
   return prisma.rJApplicationDocument.create({
     data: { ...data, applicationId: BigInt(applicationId) },
@@ -180,6 +190,7 @@ module.exports = {
   findById,
   findByAppCode,
   findPendingByUserId,
+  findLatestByUserId,
   createApplication,
   addDocument,
   updateStatus,

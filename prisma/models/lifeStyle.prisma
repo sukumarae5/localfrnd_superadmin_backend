@@ -1,0 +1,100 @@
+enum LifestyleCategoryStatus {
+  active
+  inactive
+  draft
+  hidden
+
+  @@map("lifestyle_category_status")
+}
+
+enum LifestyleStatus {
+  active
+  inactive
+  draft
+  hidden
+
+  @@map("lifestyle_status")
+}
+
+enum LifestyleSelectionType {
+  single
+  multiple
+
+  @@map("lifestyle_selection_type")
+}
+
+model LifestyleCategory {
+  id       BigInt @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  displayCode String @unique @map("display_code") @db.VarChar(20)
+
+  name        String  @db.VarChar(100)
+  slug        String  @unique @db.VarChar(120)
+  description String?
+  icon        String? @db.VarChar(255)
+
+  selectionType LifestyleSelectionType @default(single) @map("selection_type")
+
+  sortOrder Int @default(0) @map("sort_order")
+
+  status LifestyleCategoryStatus @default(draft)
+
+  createdById BigInt? @map("created_by")
+  updatedById BigInt? @map("updated_by")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  createdBy Admin? @relation("LifestyleCategoryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy Admin? @relation("LifestyleCategoryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  lifestyles Lifestyle[]
+
+  @@index([status])
+  @@index([sortOrder])
+  @@map("lifestyle_categories")
+}
+
+model Lifestyle {
+  id       BigInt @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  categoryId BigInt @map("category_id")
+
+  name        String  @db.VarChar(100)
+  slug        String  @db.VarChar(120)
+  description String?
+
+  sortOrder Int @default(0) @map("sort_order")
+
+  status LifestyleStatus @default(active)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  category LifestyleCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  userLifestyles UserLifestyle[]
+
+  @@unique([categoryId, slug])
+  @@index([categoryId])
+  @@index([status])
+  @@map("lifestyles")
+}
+
+model UserLifestyle {
+  userId      BigInt @map("user_id")
+  lifestyleId BigInt @map("lifestyle_id")
+
+  selectedAt DateTime @default(now()) @map("selected_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lifestyle Lifestyle @relation(fields: [lifestyleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, lifestyleId])
+  @@index([lifestyleId])
+  @@map("user_lifestyles")
+}
