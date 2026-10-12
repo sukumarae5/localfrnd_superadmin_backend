@@ -71,9 +71,29 @@ function serializeDetail(a, duplicates = []) {
 function mapKnownErrors(err) {
   const map = {
     BANK_ACCOUNT_NOT_FOUND: [HTTP_STATUS.NOT_FOUND, "Bank account not found"],
+    BANK_ACCOUNT_NOT_VERIFIED: [HTTP_STATUS.BAD_REQUEST, "Only a verified bank account can be set as primary"],
   };
   if (map[err.message]) throw new ApiError(...map[err.message]);
   throw err;
+}
+
+// RJ's own view of her own account — no rj{} identity block (she knows who
+// she is), account number masked the same way the admin list view masks it.
+function serializeMine(a) {
+  return {
+    id: a.publicId,
+    bankName: a.bankName,
+    accountType: a.accountType,
+    maskedAccountNumber: maskAccountNumber(a.accountNumber),
+    ifscCode: a.ifscCode,
+    upiId: a.upiId,
+    accountHolderName: a.accountHolderName,
+    status: a.status,
+    isPrimary: a.isPrimary,
+    rejectionReason: a.rejectionReason,
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt,
+  };
 }
 
 async function listBankAccounts(query) {
@@ -144,4 +164,51 @@ async function retryPennyDrop(id, adminId) {
   }
 }
 
-module.exports = { listBankAccounts, getDetail, approve, reject, addNote, retryPennyDrop };
+// ---- RJ-facing (mobile app) ----
+
+async function createMine(rjId, body) {
+  const account = await repo.createForRj(rjId, body);
+  return serializeMine(account);
+}
+
+async function listMine(rjId) {
+  const accounts = await repo.listForRj(rjId);
+  return accounts.map(serializeMine);
+}
+
+async function getMine(rjId, publicId) {
+  const account = await repo.findForRj(rjId, publicId);
+  if (!account) throw new ApiError(HTTP_STATUS.NOT_FOUND, "Bank account not found");
+  return serializeMine(account);
+}
+
+async function setPrimaryMine(rjId, publicId) {
+  try {
+    const account = await repo.setPrimaryForRj(rjId, publicId);
+    return serializeMine(account);
+  } catch (err) {
+    mapKnownErrors(err);
+  }
+}
+
+async function removeMine(rjId, publicId) {
+  try {
+    await repo.softDeleteForRj(rjId, publicId);
+  } catch (err) {
+    mapKnownErrors(err);
+  }
+}
+
+module.exports = {
+  listBankAccounts,
+  getDetail,
+  approve,
+  reject,
+  addNote,
+  retryPennyDrop,
+  createMine,
+  listMine,
+  getMine,
+  setPrimaryMine,
+  removeMine,
+};

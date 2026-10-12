@@ -24,4 +24,18 @@ const noteSchema = Joi.object({
   note: Joi.string().trim().max(1000).required(),
 });
 
-module.exports = { listBankAccountsQuerySchema, approveSchema, rejectSchema, noteSchema };
+// ---- RJ-facing (mobile app) ----
+// Deliberately excludes status/isPrimary/verification fields — an RJ submits
+// raw details, she can never self-verify or silently flip her own status.
+const createMineSchema = Joi.object({
+  bankName: Joi.string().trim().max(100).allow("", null),
+  accountType: Joi.string().valid("savings", "current").allow("", null),
+  accountNumber: Joi.string().trim().min(6).max(30),
+  ifscCode: Joi.string().trim().uppercase().max(15),
+  upiId: Joi.string().trim().max(150),
+  accountHolderName: Joi.string().trim().max(100).allow("", null),
+})
+  .or("accountNumber", "upiId") // at least a bank account OR a UPI id
+  .and("accountNumber", "ifscCode"); // if a bank account is given, the IFSC must come with it
+
+module.exports = { listBankAccountsQuerySchema, approveSchema, rejectSchema, noteSchema, createMineSchema };

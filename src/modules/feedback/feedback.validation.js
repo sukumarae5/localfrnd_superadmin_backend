@@ -24,6 +24,17 @@ const createFeedbackSchema = Joi.object({
   rating: Joi.number().integer().min(1).max(5).optional(),
 });
 
+// Real mobile-app submission — deliberately has NO userId field. The
+// controller takes it from req.user.id, so a user can never file feedback
+// as someone else even if they put a userId in the body.
+const createMyFeedbackSchema = Joi.object({
+  type: Joi.string().valid(...FEEDBACK_TYPES).required(),
+  subject: Joi.string().trim().max(200).required(),
+  message: Joi.string().trim().min(1).required(),
+  category: Joi.string().trim().max(50).optional(),
+  rating: Joi.number().integer().min(1).max(5).optional(),
+});
+
 const updateStatusSchema = Joi.object({
   status: Joi.string().valid(...FEEDBACK_STATUSES).required(),
   resolutionNote: Joi.string().trim().max(1000).when("status", {
@@ -41,4 +52,11 @@ const setPrioritySchema = Joi.object({
   priority: Joi.string().valid(...FEEDBACK_PRIORITIES).required(),
 });
 
-module.exports = { listFeedbackQuerySchema, createFeedbackSchema, updateStatusSchema, assignSchema, setPrioritySchema };
+module.exports = {
+  listFeedbackQuerySchema,
+  createFeedbackSchema,
+  createMyFeedbackSchema,
+  updateStatusSchema,
+  assignSchema,
+  setPrioritySchema,
+};

@@ -119,6 +119,14 @@ model Admin {
   refundsRequested             Refund[]               @relation("RefundRequestedBy")
   refundsResolved              Refund[]               @relation("RefundResolvedBy")
 
+  cmsPagesCreated      CmsPage[]         @relation("CmsPageCreatedBy")
+  cmsPagesUpdated      CmsPage[]         @relation("CmsPageUpdatedBy")
+  cmsPageRevisions     CmsPageRevision[] @relation("CmsPageRevisionCreatedBy")
+  faqCategoriesCreated FaqCategory[]     @relation("FaqCategoryCreatedBy")
+  faqCategoriesUpdated FaqCategory[]     @relation("FaqCategoryUpdatedBy")
+  faqsCreated          Faq[]             @relation("FaqCreatedBy")
+  faqsUpdated          Faq[]             @relation("FaqUpdatedBy")
+
   @@index([roleId])
   @@index([status])
   @@map("admins")

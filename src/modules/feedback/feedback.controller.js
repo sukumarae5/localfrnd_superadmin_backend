@@ -44,4 +44,13 @@ async function setPriority(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, getOne, create, updateStatus, assign, setPriority };
+// ---- User-facing (mobile app, authenticateUser) ----
+
+async function createMine(req, res, next) {
+  try {
+    const item = await service.createFeedback({ ...req.body, userId: req.user.id });
+    res.status(HTTP_STATUS.CREATED).json(new ApiResponse(HTTP_STATUS.CREATED, { feedback: item }, "Feedback submitted"));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, getOne, create, updateStatus, assign, setPriority, createMine };
