@@ -1,0 +1,180 @@
+// ============================================================================
+// CMS MODULE — About Us / Privacy Policy / Terms & Conditions / Contact Us.
+//
+// Design notes (read before changing):
+// - One CmsPage row per (pageKey, language). `content` is a flexible JSON
+//   block on purpose: About Us and Contact Us are section-based pages (hero,
+//   values, offices, channels...), while Privacy Policy and Terms are a
+//   single rich-text/markdown body. Enforcing one rigid shape at the DB
+//   layer would force either page type to carry fields it doesn't use — the
+//   admin UI owns the shape of `content` per pageKey, not Prisma.
+// - Deliberately ONE row per page (not separate draft/live copies) to match
+//   how every other content module in this codebase already works (Banner,
+//   Offer, SplashScreen all have a single `status` field, not a parallel
+//   draft/live pair). Every save writes a CmsPageRevision snapshot, so
+//   history/rollback is still fully available without a second live copy.
+// - Contact Us's "Incoming Requests" inbox is NOT part of this module — that
+//   is the existing UserFeedback/feedback module (ticketCode, status,
+//   priority, assignedTo already exist there). This module only owns the
+//   Contact Us *page content* (hero text, support channels, office list),
+//   not a second ticketing system.
+// ============================================================================
+
+enum CmsPageKey {
+  about_us
+  privacy_policy
+  terms_conditions
+  contact_us
+
+  @@map("cms_page_key")
+}
+
+enum CmsPageStatus {
+  draft
+  published
+  archived
+
+  @@map("cms_page_status")
+}
+
+model CmsPage {
+  id       BigInt @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  pageKey  CmsPageKey @map("page_key")
+  language String     @default("en") @db.VarChar(10)
+
+  title String @db.VarChar(200)
+  slug  String @db.VarChar(150)
+
+  // Section blocks (about_us / contact_us) or { "body": "<rich text/markdown>" }
+  // (privacy_policy / terms_conditions). Shape is an admin-UI concern.
+  content Json @default("{}")
+
+  status      CmsPageStatus @default(draft)
+  version     Int           @default(1)
+  effectiveAt DateTime?     @map("effective_at") // e.g. "this policy takes effect on..."
+  publishedAt DateTime?     @map("published_at")
+
+  createdById BigInt? @map("created_by")
+  updatedById BigInt? @map("updated_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  createdBy Admin? @relation("CmsPageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy Admin? @relation("CmsPageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  revisions CmsPageRevision[]
+
+  @@unique([pageKey, language])
+  @@index([status])
+  @@map("cms_pages")
+}
+
+// Full snapshot on every save (draft or publish) — powers the "Version
+// History" panel and lets an admin restore an older version.
+model CmsPageRevision {
+  id     BigInt @id @default(autoincrement())
+  pageId BigInt @map("page_id")
+
+  version    Int
+  title      String        @db.VarChar(200)
+  content    Json
+  status     CmsPageStatus
+  changeNote String?       @map("change_note")
+
+  createdById BigInt?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  page      CmsPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdBy Admin?  @relation("CmsPageRevisionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([pageId, version])
+  @@map("cms_page_revisions")
+}
+
+// ----------------------------------------------------------------------------
+// FAQ — category + question/answer. Deliberately mirrors the
+// LifestyleCategory/Lifestyle pattern already used elsewhere in this
+// codebase (same field names, same soft-delete + status + sortOrder shape),
+// so it behaves exactly the way every other admin already expects a
+// category/item pair to behave.
+// ----------------------------------------------------------------------------
+
+enum FaqCategoryStatus {
+  active
+  inactive
+  draft
+  hidden
+
+  @@map("faq_category_status")
+}
+
+enum FaqStatus {
+  published
+  draft
+  hidden
+
+  @@map("faq_status")
+}
+
+model FaqCategory {
+  id       BigInt @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  displayCode String @unique @map("display_code") @db.VarChar(20) // FC-001
+
+  name        String  @db.VarChar(100)
+  slug        String  @unique @db.VarChar(120)
+  description String?
+  icon        String? @db.VarChar(255)
+
+  sortOrder Int               @default(0) @map("sort_order")
+  status    FaqCategoryStatus @default(draft)
+
+  createdById BigInt? @map("created_by")
+  updatedById BigInt? @map("updated_by")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  createdBy Admin? @relation("FaqCategoryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy Admin? @relation("FaqCategoryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  faqs Faq[]
+
+  @@index([status])
+  @@index([sortOrder])
+  @@map("faq_categories")
+}
+
+model Faq {
+  id       BigInt @id @default(autoincrement())
+  publicId String @unique @default(uuid()) @map("public_id") @db.Uuid
+
+  categoryId BigInt @map("category_id")
+
+  question String @db.VarChar(300)
+  answer   String
+  language String @default("en") @db.VarChar(10)
+
+  sortOrder Int       @default(0) @map("sort_order")
+  status    FaqStatus @default(draft)
+
+  createdById BigInt? @map("created_by")
+  updatedById BigInt? @map("updated_by")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  category  FaqCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdBy Admin?      @relation("FaqCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy Admin?      @relation("FaqUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([categoryId])
+  @@index([status])
+  @@map("faqs")
+}

@@ -13,8 +13,10 @@ router.use(authenticate);
 router.get("/", validate(listFeedbackQuerySchema, "query"), controller.list);
 router.get("/:id", controller.getOne);
 
-// Same caveat as before: real submission belongs on the user-facing API with
-// user-JWT auth, not here. Wired admin-side only so you can test/seed data.
+// Admin-only testing/seeding create. The REAL mobile-app submission is
+// POST /api/user/feedback (feedback.user.routes.js, authenticateUser,
+// userId taken from the token) — deliberately a different path so the two
+// never collide.
 router.post("/", validate(createFeedbackSchema), controller.create);
 
 router.patch(

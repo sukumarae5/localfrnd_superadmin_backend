@@ -11,6 +11,7 @@ const offersRoutes = require("../modules/offers/offers.routes");
 const walletRoutes = require("../modules/wallet/wallet.routes");
 const activityRoutes = require("../modules/activity/activity.routes");
 const feedbackRoutes = require("../modules/feedback/feedback.routes");
+const feedbackUserRoutes = require("../modules/feedback/feedback.user.routes");
 const userAuthRoutes = require("../modules/userAuth/userAuth.routes");
 const userProfileRoutes = require("../modules/userProfile/userProfile.routes");
 const rjProfileRoutes = require("../modules/rj/profile/rj.routes");
@@ -60,6 +61,12 @@ const lifestyleRoutes = require("../modules/lifestyle/lifestyle.routes");
 
 const userLifestyleRoutes = require("../modules/userLifestyle/userLifestyle.routes");
 
+const cmsRoutes = require("../modules/cms/cms.routes");
+const cmsPublicRoutes = require("../modules/cms/cms.public.routes");
+const faqCategoryRoutes = require("../modules/faqCategory/faqCategory.routes");
+const faqRoutes = require("../modules/faq/faq.routes");
+const faqPublicRoutes = require("../modules/faq/faq.public.routes");
+
 const router = express.Router();
 
 router.use("/health", healthRoutes);
@@ -73,28 +80,34 @@ router.use("/plans", plansRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/activity", activityRoutes);
 router.use("/feedback", feedbackRoutes);
+router.use("/user/feedback", feedbackUserRoutes);
 router.use("/admin/interest-categories", interestCategoryRoutes);
 router.use("/user-interests", userInterestRoutes);
 router.use("/rj-interests", rjInterestRoutes);
 router.use("/user/auth", userAuthRoutes);
 router.use("/user/profile", userProfileRoutes);
 router.use("/rj/calls", rjCallsRouter);
-// These three MUST be registered before router.use("/rj", rjProfileRoutes)
+// These five MUST be registered before router.use("/rj", rjProfileRoutes)
 // below. Express's router.use(path, ...) matches by prefix, so "/rj" alone
-// would otherwise swallow every "/rj/friends/...", "/rj/notifications/..."
-// and "/rj/chat/..." request first (running rjProfileRoutes' admin-only
-// `authenticate` middleware before this router even gets a chance) — the
-// exact bug that made /rj/friends/* and /rj/chat/* 401 with the ADMIN
-// "Invalid or expired access token" error even though a real, valid RJ
-// token was being sent. /rj/calls above was already correctly positioned
-// ahead of "/rj" for the same reason; these just weren't.
+// would otherwise swallow every "/rj/friends/...", "/rj/notifications/...",
+// "/rj/chat/...", "/rj/rings/..." and "/rj/bank-accounts/..." request first
+// (running rjProfileRoutes' admin-only `authenticate` middleware — which has
+// no path restriction of its own — before any of those routers even get a
+// chance) — the exact bug that made /rj/friends/* and /rj/chat/* 401 with
+// the ADMIN "Invalid or expired access token" error even though a real,
+// valid RJ token was being sent. /rj/calls above was already correctly
+// positioned ahead of "/rj" for the same reason; /rj/rings and
+// /rj/bank-accounts were NOT — the RJ-facing routes under both (ring
+// conversion history, and now the RJ bank-account self-service routes)
+// were silently unreachable until this fix.
 router.use("/rj/friends", rjFriendsRouter);
 router.use("/rj/notifications", rjNotificationsRouter);
 router.use("/rj/chat", rjChatRouter);
+router.use("/rj/rings", rjRingsRouter);
+router.use("/rj/bank-accounts", bankAccountRoutes);
 router.use("/rj", rjProfileRoutes);
 router.use("/rj-applications", adminApplicationRouter);
 router.use("/user/rj-applications", userApplicationRouter);
-router.use("/rj/rings", rjRingsRouter);
 router.use("/admin/rj-ring-settings", adminRingSettingsRouter);
 router.use("/rj-status", rjStatusRoutes);
 router.use("/rj-earnings", rjEarningsRoutes);
@@ -106,7 +119,6 @@ router.use("/user", userAvatarRoutes);
 router.use("/splash-screens", splashScreenRoutes);
 router.use("/admin/banners", bannersRoutes);
 router.use("/public/banners", bannersPublicRoutes);
-router.use("/rj/bank-accounts", bankAccountRoutes);
 router.use("/coin-transactions", coinTransactionRoutes);
 router.use("/coin-packages", coinPackageRoutes);
 router.use("/user/coins", userCoinRoutes);
@@ -127,5 +139,14 @@ router.use("/admin/lifestyle-categories", lifestyleCategoryRoutes);
 router.use("/admin/lifestyles", lifestyleRoutes);
 
 router.use("/user-lifestyles", userLifestyleRoutes);
+
+// CMS: About Us / Privacy Policy / Terms & Conditions / Contact Us page content
+router.use("/admin/cms", cmsRoutes);
+router.use("/public/cms", cmsPublicRoutes);
+
+// FAQ
+router.use("/admin/faq-categories", faqCategoryRoutes);
+router.use("/admin/faqs", faqRoutes);
+router.use("/public/faq", faqPublicRoutes);
 
 module.exports = router;

@@ -95,6 +95,7 @@ enum PaymentMethod {
   upi
   credit_card
   wallet
+  bank_transfer
   other
 
   @@map("payment_method")

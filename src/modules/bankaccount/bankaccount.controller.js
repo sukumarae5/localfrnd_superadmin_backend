@@ -1,4 +1,4 @@
-const ApiResponse = require("../../utils/apiError.util");
+const ApiResponse = require("../../utils/apiresponse.util");
 const { HTTP_STATUS } = require("../../constants");
 const service = require("./bankaccount.service");
 
@@ -56,4 +56,63 @@ async function retryPennyDrop(req, res, next) {
   }
 }
 
-module.exports = { list, getOne, approve, reject, addNote, retryPennyDrop };
+// ---- RJ-facing (mobile app, authenticateRJ) ----
+
+async function createMine(req, res, next) {
+  try {
+    const result = await service.createMine(req.rj.id, req.body);
+    res.status(HTTP_STATUS.CREATED).json(new ApiResponse(HTTP_STATUS.CREATED, result, "Bank account submitted for verification"));
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function listMine(req, res, next) {
+  try {
+    const result = await service.listMine(req.rj.id);
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { bankAccounts: result }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getOneMine(req, res, next) {
+  try {
+    const bankAccount = await service.getMine(req.rj.id, req.params.id);
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { bankAccount }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function setPrimaryMine(req, res, next) {
+  try {
+    const result = await service.setPrimaryMine(req.rj.id, req.params.id);
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result, "Primary bank account updated"));
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteMine(req, res, next) {
+  try {
+    await service.removeMine(req.rj.id, req.params.id);
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, "Bank account removed"));
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  list,
+  getOne,
+  approve,
+  reject,
+  addNote,
+  retryPennyDrop,
+  createMine,
+  listMine,
+  getOneMine,
+  setPrimaryMine,
+  deleteMine,
+};

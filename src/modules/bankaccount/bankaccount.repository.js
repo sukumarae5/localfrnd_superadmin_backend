@@ -196,6 +196,71 @@ async function retryPennyDrop(publicId, adminId) {
   });
 }
 
+// ---- RJ-facing (mobile app) ----
+// Mirrors withdrawal.repository.js's RJ-scoped pattern: every query/mutation
+// here is filtered by rjId so an RJ can never see or touch another RJ's
+// bank details, even if she guesses a publicId.
+
+async function createForRj(rjId, data) {
+  return prisma.$transaction(async (tx) => {
+    const existingCount = await tx.rJBankAccount.count({ where: { rjId: BigInt(rjId), deletedAt: null } });
+
+    const created = await tx.rJBankAccount.create({
+      data: {
+        ...data,
+        rjId: BigInt(rjId),
+        status: "pending", // she can never self-verify
+        isPrimary: existingCount === 0, // her first account becomes primary automatically
+      },
+    });
+
+    await tx.rJBankAccountVerificationLog.create({
+      data: { bankAccountId: created.id, action: "submitted", note: "Submitted by RJ" },
+    });
+
+    return created;
+  });
+}
+
+function listForRj(rjId) {
+  return prisma.rJBankAccount.findMany({
+    where: { rjId: BigInt(rjId), deletedAt: null },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+  });
+}
+
+function findForRj(rjId, publicId) {
+  return prisma.rJBankAccount.findFirst({
+    where: { rjId: BigInt(rjId), publicId, deletedAt: null },
+    include: { logs: { orderBy: { createdAt: "desc" } } },
+  });
+}
+
+async function setPrimaryForRj(rjId, publicId) {
+  return prisma.$transaction(async (tx) => {
+    const account = await tx.rJBankAccount.findFirst({ where: { rjId: BigInt(rjId), publicId, deletedAt: null } });
+    if (!account) throw new Error("BANK_ACCOUNT_NOT_FOUND");
+    if (account.status !== "verified") throw new Error("BANK_ACCOUNT_NOT_VERIFIED");
+
+    await tx.rJBankAccount.updateMany({
+      where: { rjId: BigInt(rjId), id: { not: account.id } },
+      data: { isPrimary: false },
+    });
+
+    return tx.rJBankAccount.update({ where: { id: account.id }, data: { isPrimary: true } });
+  });
+}
+
+async function softDeleteForRj(rjId, publicId) {
+  const account = await prisma.rJBankAccount.findFirst({ where: { rjId: BigInt(rjId), publicId, deletedAt: null } });
+  if (!account) throw new Error("BANK_ACCOUNT_NOT_FOUND");
+
+  return prisma.rJBankAccount.update({
+    where: { id: account.id },
+    data: { deletedAt: new Date(), isPrimary: false },
+  });
+}
+
 module.exports = {
   listBankAccounts,
   getStats,
@@ -205,4 +270,9 @@ module.exports = {
   reject,
   addNote,
   retryPennyDrop,
+  createForRj,
+  listForRj,
+  findForRj,
+  setPrimaryForRj,
+  softDeleteForRj,
 };
