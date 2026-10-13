@@ -1,3 +1,4 @@
+// src/modules/cms/cms.controller.js
 const { HTTP_STATUS } = require("../../constants");
 const ApiResponse = require("../../utils/apiresponse.util");
 const service = require("./cms.service");
@@ -28,6 +29,52 @@ async function saveDraft(req, res, next) {
   try {
     const data = await service.saveDraft(req.params.pageKey, req.body, toAdminId(req));
     res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, "Draft saved successfully"));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function patchSection(req, res, next) {
+  try {
+    const data = await service.patchSection(
+      req.params.pageKey,
+      req.params.sectionKey,
+      req.body,
+      toAdminId(req)
+    );
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, "Section saved successfully"));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function removeSection(req, res, next) {
+  try {
+    const data = await service.removeSection(
+      req.params.pageKey,
+      req.params.sectionKey,
+      req.query.language,
+      toAdminId(req)
+    );
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, "Section removed successfully"));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateSettings(req, res, next) {
+  try {
+    const data = await service.updateSettings(req.params.pageKey, req.body, toAdminId(req));
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, "Page settings updated successfully"));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function uploadImage(req, res, next) {
+  try {
+    const data = await service.uploadImage(req.params.pageKey, req.file);
+    res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, "Image uploaded successfully"));
   } catch (error) {
     next(error);
   }
@@ -78,7 +125,7 @@ async function restoreRevision(req, res, next) {
 
 async function getPublishedPage(req, res, next) {
   try {
-    const data = await service.getPublishedPage(req.params.pageKey, req.query.language);
+    const data = await service.getPublishedPage(req.params.pageKey, req.query.language, req.query.platform);
     res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, "Page fetched successfully"));
   } catch (error) {
     next(error);
@@ -89,6 +136,10 @@ module.exports = {
   listPages,
   getPage,
   saveDraft,
+  patchSection,
+  removeSection,
+  updateSettings,
+  uploadImage,
   publishPage,
   updateStatus,
   listRevisions,

@@ -1,3 +1,4 @@
+// src/modules/cms/cms.repository.js
 const { prisma } = require("../../config/database");
 
 const revisionSelect = {
@@ -41,9 +42,26 @@ function list({ page, limit, filters }) {
   ]);
 }
 
-// Upserts the page row AND writes a revision snapshot in one transaction —
-// a page and its history must never disagree about what was actually saved.
-async function saveDraft({ pageKey, language, title, slug, content, effectiveAt, changeNote, adminId }) {
+// Shared helper — every write path snapshots a revision inside the same
+// transaction so a page and its history never disagree.
+function createRevision(tx, page, changeNote, adminId) {
+  return tx.cmsPageRevision.create({
+    data: {
+      pageId: page.id,
+      version: page.version,
+      title: page.title,
+      content: page.content,
+      status: page.status,
+      changeNote: changeNote || null,
+      createdById: adminId ?? undefined,
+    },
+  });
+}
+
+// Upserts the page row AND writes a revision snapshot in one transaction.
+async function saveDraft({
+  pageKey, language, title, slug, content, seo, visibility, effectiveAt, changeNote, adminId,
+}) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.cmsPage.findUnique({
       where: { pageKey_language: { pageKey, language } },
@@ -56,6 +74,8 @@ async function saveDraft({ pageKey, language, title, slug, content, effectiveAt,
             title,
             slug,
             content,
+            seo: seo ?? existing.seo,
+            visibility: visibility ?? existing.visibility,
             effectiveAt: effectiveAt ?? existing.effectiveAt,
             version: existing.version + 1,
             updatedById: adminId ?? undefined,
@@ -68,6 +88,8 @@ async function saveDraft({ pageKey, language, title, slug, content, effectiveAt,
             title,
             slug,
             content,
+            seo: seo ?? {},
+            visibility: visibility ?? {},
             effectiveAt: effectiveAt ?? null,
             status: "draft",
             version: 1,
@@ -76,20 +98,52 @@ async function saveDraft({ pageKey, language, title, slug, content, effectiveAt,
           },
         });
 
-    await tx.cmsPageRevision.create({
+    await createRevision(tx, page, changeNote, adminId);
+    return page;
+  });
+}
+
+// Add / replace / remove ONE key inside content, leaving every other section alone.
+// Returns null when the page row doesn't exist yet.
+async function patchSection({ pageKey, language, sectionKey, data, remove, changeNote, adminId }) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.cmsPage.findUnique({
+      where: { pageKey_language: { pageKey, language } },
+    });
+    if (!existing) return null;
+
+    const content = { ...(existing.content || {}) };
+    if (remove) {
+      delete content[sectionKey];
+    } else {
+      content[sectionKey] = data;
+    }
+
+    const page = await tx.cmsPage.update({
+      where: { id: existing.id },
       data: {
-        pageId: page.id,
-        version: page.version,
-        title: page.title,
-        content: page.content,
-        status: page.status,
-        changeNote: changeNote || null,
-        createdById: adminId ?? undefined,
+        content,
+        version: existing.version + 1,
+        updatedById: adminId ?? undefined,
       },
     });
 
+    await createRevision(
+      tx,
+      page,
+      changeNote || (remove ? `Removed section "${sectionKey}"` : `Updated section "${sectionKey}"`),
+      adminId
+    );
     return page;
   });
+}
+
+// seo / visibility only — content is untouched, so no revision snapshot needed.
+function updateSettings({ pageId, seo, visibility, adminId }) {
+  const data = { updatedById: adminId ?? undefined };
+  if (seo !== undefined) data.seo = seo;
+  if (visibility !== undefined) data.visibility = visibility;
+  return prisma.cmsPage.update({ where: { id: pageId }, data });
 }
 
 async function publish({ pageId, adminId, changeNote }) {
@@ -104,18 +158,7 @@ async function publish({ pageId, adminId, changeNote }) {
       },
     });
 
-    await tx.cmsPageRevision.create({
-      data: {
-        pageId: page.id,
-        version: page.version,
-        title: page.title,
-        content: page.content,
-        status: page.status,
-        changeNote: changeNote || "Published",
-        createdById: adminId ?? undefined,
-      },
-    });
-
+    await createRevision(tx, page, changeNote || "Published", adminId);
     return page;
   });
 }
@@ -163,18 +206,7 @@ async function restoreRevision({ pageId, revision, adminId }) {
       },
     });
 
-    await tx.cmsPageRevision.create({
-      data: {
-        pageId: page.id,
-        version: page.version,
-        title: page.title,
-        content: page.content,
-        status: page.status,
-        changeNote: `Restored from v${revision.version}`,
-        createdById: adminId ?? undefined,
-      },
-    });
-
+    await createRevision(tx, page, `Restored from v${revision.version}`, adminId);
     return page;
   });
 }
@@ -184,6 +216,8 @@ module.exports = {
   findPublishedByKey,
   list,
   saveDraft,
+  patchSection,
+  updateSettings,
   publish,
   updateStatus,
   listRevisions,

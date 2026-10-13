@@ -51,6 +51,13 @@ model CmsPage {
   // (privacy_policy / terms_conditions). Shape is an admin-UI concern.
   content Json @default("{}")
 
+  // { "metaTitle": "...", "metaDescription": "..." }
+  seo Json @default("{}")
+ 
+  // { "android": true, "ios": true, "website": true, "landing": false }
+  // {} = visible everywhere (pages saved before this field existed)
+  visibility Json @default("{}")
+  
   status      CmsPageStatus @default(draft)
   version     Int           @default(1)
   effectiveAt DateTime?     @map("effective_at") // e.g. "this policy takes effect on..."
