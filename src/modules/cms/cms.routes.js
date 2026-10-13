@@ -1,19 +1,22 @@
 // src/modules/cms/cms.routes.js
 // Mounted at /api/admin/cms — About Us / Privacy Policy / Terms & Conditions /
-// Contact Us page content. Legal-document edits are elevated-permission only,
-// same reasoning as this codebase's other curated-content modules
-// (lifestyleCategory, interestCategory): the whole router is admin/super_admin.
+// Contact Us page content. Legal-document edits are elevated-permission only:
+// the whole router is admin/super_admin.
 const express = require("express");
 const controller = require("./cms.controller");
 const validate = require("../../middleware/validation.middleware");
 const { authenticate, requireRole } = require("../../middleware/auth.middleware");
+const uploadMemory = require("../../middleware/avatarUpload.middleware");
 const { ADMIN_ROLES } = require("../../constants");
 const {
   pageKeyParamSchema,
   revisionParamSchema,
+  sectionParamSchema,
   languageQuerySchema,
   listQuerySchema,
   saveDraftSchema,
+  patchSectionSchema,
+  updateSettingsSchema,
   publishSchema,
   updateStatusSchema,
   revisionsQuerySchema,
@@ -35,12 +38,44 @@ router.get(
   controller.getPage
 );
 
-// PUT /api/admin/cms/pages/:pageKey — upsert + revision snapshot (creates on first save)
+// PUT /api/admin/cms/pages/:pageKey — FULL save (creates on first save, replaces content after)
 router.put(
   "/pages/:pageKey",
   validate(pageKeyParamSchema, "params"),
   validate(saveDraftSchema, "body"),
   controller.saveDraft
+);
+
+// PATCH /api/admin/cms/pages/:pageKey/sections/:sectionKey — add/replace ONE section
+router.patch(
+  "/pages/:pageKey/sections/:sectionKey",
+  validate(sectionParamSchema, "params"),
+  validate(patchSectionSchema, "body"),
+  controller.patchSection
+);
+
+// DELETE /api/admin/cms/pages/:pageKey/sections/:sectionKey?language=en — remove ONE section
+router.delete(
+  "/pages/:pageKey/sections/:sectionKey",
+  validate(sectionParamSchema, "params"),
+  validate(languageQuerySchema, "query"),
+  controller.removeSection
+);
+
+// PUT /api/admin/cms/pages/:pageKey/settings — SEO + Visibility only
+router.put(
+  "/pages/:pageKey/settings",
+  validate(pageKeyParamSchema, "params"),
+  validate(updateSettingsSchema, "body"),
+  controller.updateSettings
+);
+
+// POST /api/admin/cms/pages/:pageKey/upload-image — form-data, field "image"
+router.post(
+  "/pages/:pageKey/upload-image",
+  validate(pageKeyParamSchema, "params"),
+  uploadMemory.single("image"),
+  controller.uploadImage
 );
 
 // POST /api/admin/cms/pages/:pageKey/publish
