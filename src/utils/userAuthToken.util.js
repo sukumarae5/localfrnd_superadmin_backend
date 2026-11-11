@@ -20,7 +20,7 @@ function signUserAccessToken(user) {
   return sign(
     {
       userId: user.id.toString(), // internal id, same convention as admin's adminId
-     
+      role: 'user'
     },
     process.env.JWT_USER_ACCESS_SECRET,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
