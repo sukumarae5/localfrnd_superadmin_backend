@@ -1,7 +1,4 @@
-// src/modules/cms/cms.routes.js
-// Mounted at /api/admin/cms — About Us / Privacy Policy / Terms & Conditions /
-// Contact Us page content. Legal-document edits are elevated-permission only:
-// the whole router is admin/super_admin.
+
 const express = require("express");
 const controller = require("./cms.controller");
 const validate = require("../../middleware/validation.middleware");
