@@ -1,5 +1,10 @@
 const express = require("express");
 const router = express.Router();
+const { Country, State, City } = require("country-state-city");
+const ApiError = require("../../utils/apiError.util");
+
+const flagUrl = (iso) => `https://flagcdn.com/w80/${iso.toLowerCase()}.png`;
+const byName = (a, b) => a.name.localeCompare(b.name);
 
 const controller = require("./userProfile.controller");
 const { authenticateUser } = require("../../middleware/Userauth.middleware");
@@ -36,5 +41,38 @@ router.get("/languages", async (req, res, next) => {
     next(err);
   }
 });
+
+
+// GET /api/user/profile/locations/countries
+router.get("/locations/countries", (req, res) => {
+  const countries = Country.getAllCountries()
+    .map((c) => ({ isoCode: c.isoCode, name: c.name, flagUrl: flagUrl(c.isoCode) }))
+    .sort(byName);
+  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { countries }, "Countries fetched"));
+});
+
+// GET /api/user/profile/locations/states?countryCode=IN
+router.get("/locations/states", (req, res) => {
+  const countryCode = String(req.query.countryCode || "").toUpperCase();
+  if (!countryCode) throw new ApiError(HTTP_STATUS.BAD_REQUEST, "countryCode query param is required");
+  const states = State.getStatesOfCountry(countryCode)
+    .map((s) => ({ isoCode: s.isoCode, name: s.name }))
+    .sort(byName);
+  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { states }, "States fetched"));
+});
+
+// GET /api/user/profile/locations/cities?countryCode=IN&stateCode=TG
+router.get("/locations/cities", (req, res) => {
+  const countryCode = String(req.query.countryCode || "").toUpperCase();
+  const stateCode = String(req.query.stateCode || "").toUpperCase();
+  if (!countryCode || !stateCode) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, "countryCode and stateCode query params are required");
+  }
+  const cities = City.getCitiesOfState(countryCode, stateCode)
+    .map((c) => ({ name: c.name }))
+    .sort(byName);
+  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { cities }, "Cities fetched"));
+});
+
 
 module.exports = router;
