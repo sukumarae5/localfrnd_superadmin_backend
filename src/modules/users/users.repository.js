@@ -144,6 +144,27 @@ function updateVerificationStatus(id, verificationStatus, verifiedById) {
 
 }
 
+
+// Automatically verify a profile after a successful profile save.
+// If already verified, preserve its existing verifiedAt and verifiedById.
+function markAutomaticallyVerified(id) {
+  return prisma.user.updateMany({
+    where: {
+      id: BigInt(id),
+      deletedAt: null,
+      verificationStatus: {
+        not: "verified",
+      },
+    },
+    data: {
+      verificationStatus: "verified",
+      verifiedAt: new Date(),
+      verifiedById: null,
+    },
+  });
+}
+
+
 function createStatusHistory({ userId, previousStatus, newStatus, reason, changedById }) {
   return prisma.userStatusHistory.create({
     data: { userId, previousStatus, newStatus, reason, changedById },
@@ -180,4 +201,5 @@ module.exports = {
   createStatusHistory,
   createNote,
   listNotes,
+  markAutomaticallyVerified,
 };

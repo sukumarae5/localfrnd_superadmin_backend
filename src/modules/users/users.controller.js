@@ -79,6 +79,26 @@ async function listNotes(req, res, next) {
   }
 }
 
+async function updateVerification(req, res, next) {
+  try {
+    const user = await userService.updateVerification(
+      req.params.id,
+      req.body.verificationStatus,
+      req.admin.adminId
+    );
+
+    res.status(HTTP_STATUS.OK).json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        { user },
+        "User verification status updated successfully"
+      )
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   list,
   getOne,
@@ -88,4 +108,5 @@ module.exports = {
   remove,
   addNote,
   listNotes,
+  updateVerification,
 };

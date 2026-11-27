@@ -8,6 +8,7 @@ const {
   updateRJSchema,
   updateAccountStatusSchema,
   updatePresenceStatusSchema,
+  updateVerificationSchema,
   addNoteSchema,
   listRJsQuerySchema,
 } = require("./rj.validation");
@@ -45,6 +46,15 @@ router.patch(
   validate(updatePresenceStatusSchema),
   controller.updatePresenceStatus
 );
+
+// PATCH /api/rj/:id/verification
+router.patch(
+  "/:id/verification",
+  requireRole(ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.ADMIN),
+  validate(updateVerificationSchema),
+  controller.updateVerification
+);
+
 
 // DELETE /api/rj/:id — soft delete, super_admin only
 router.delete("/:id", requireRole(ADMIN_ROLES.SUPER_ADMIN), controller.remove);

@@ -1,9 +1,14 @@
+
 const express = require("express");
 const controller = require("./plans.controller");
 const validate = require("../../middleware/validation.middleware");
-const { authenticate, requireRole } = require("../../middleware/auth.middleware");
+const {
+  authenticate,
+  requireRole,
+} = require("../../middleware/auth.middleware");
 const uploadMemory = require("../../middleware/avatarUpload.middleware");
 const { ADMIN_ROLES } = require("../../constants");
+
 const {
   publicIdParam,
   createPlanSchema,
@@ -17,46 +22,100 @@ const {
 } = require("./plans.validation");
 
 const router = express.Router();
-const planAssetUpload = uploadMemory.fields([{ name: "icon", maxCount: 1 }, { name: "banner", maxCount: 1 }]);
 
-router.use(authenticate);
+const planAssetUpload = uploadMemory.fields([
+  { name: "icon", maxCount: 1 },
+  { name: "banner", maxCount: 1 },
+]);
 
-// ---- Dashboard (Recharge Plans list screen cards + top-selling + revenue summary + recent purchases) ----
-router.get("/dashboard", controller.dashboard);
+// ==========================================
+// PUBLIC MOBILE APP APIs
+// No admin token required
+// ==========================================
 
-// ---- Purchases (mobile/user-facing purchase confirmation + admin refund) ----
-router.post("/purchases", validate(purchasePlanSchema), controller.purchase);
+// Get active recharge plans
+router.get(
+  "/",
+  validate(listPlansQuerySchema, "query"),
+  controller.list
+);
+
+// Get one plan
+router.get(
+  "/:publicId",
+  validate(publicIdParam, "params"),
+  controller.getOne
+);
+
+// Record plan view
+router.post(
+  "/:publicId/view",
+  validate(publicIdParam, "params"),
+  controller.recordView
+);
+
+// ==========================================
+// ADMIN APIs
+// Admin authentication required
+// ==========================================
+
+// Dashboard
+router.get(
+  "/dashboard",
+  authenticate,
+  controller.dashboard
+);
+
+// Purchases
+// NOTE: This currently retains admin authentication.
+// Replace it with your mobile-user authentication middleware
+// when you integrate the app's purchase flow.
+router.post(
+  "/purchases",
+  authenticate,
+  validate(purchasePlanSchema),
+  controller.purchase
+);
+
+// Refund purchase
 router.post(
   "/purchases/refund",
+  authenticate,
   requireRole(ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.ADMIN),
   validate(refundPurchaseSchema),
   controller.refund
 );
 
-// ---- Legacy subscription assignment (kept for backward compatibility) ----
-router.get("/subscriptions/list", validate(listSubscriptionsQuerySchema, "query"), controller.listSubscriptions);
+// Legacy subscription APIs
+router.get(
+  "/subscriptions/list",
+  authenticate,
+  validate(listSubscriptionsQuerySchema, "query"),
+  controller.listSubscriptions
+);
+
 router.post(
   "/subscriptions/assign",
+  authenticate,
   requireRole(ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.ADMIN),
   validate(assignSubscriptionSchema),
   controller.assign
 );
 
-// ---- CRUD ----
-router.get("/", validate(listPlansQuerySchema, "query"), controller.list);
-
+// Create plan
 router.post(
   "/",
+  authenticate,
   requireRole(ADMIN_ROLES.SUPER_ADMIN),
   planAssetUpload,
   validate(createPlanSchema),
   controller.create
 );
 
-router.get("/:publicId", validate(publicIdParam, "params"), controller.getOne);
-
+// Update plan
 router.put(
   "/:publicId",
+  authenticate,
   requireRole(ADMIN_ROLES.SUPER_ADMIN),
   validate(publicIdParam, "params"),
   planAssetUpload,
@@ -64,35 +123,41 @@ router.put(
   controller.update
 );
 
+// Delete plan
 router.delete(
   "/:publicId",
+  authenticate,
   requireRole(ADMIN_ROLES.SUPER_ADMIN),
   validate(publicIdParam, "params"),
   controller.remove
 );
 
+// Activate/deactivate plan
 router.patch(
   "/:publicId/status",
+  authenticate,
   requireRole(ADMIN_ROLES.SUPER_ADMIN),
   validate(publicIdParam, "params"),
   validate(setPlanActiveSchema),
   controller.setActive
 );
 
+// Publish plan
 router.post(
   "/:publicId/publish",
+  authenticate,
   requireRole(ADMIN_ROLES.SUPER_ADMIN),
   validate(publicIdParam, "params"),
   controller.publish
 );
 
+// Duplicate plan
 router.post(
   "/:publicId/duplicate",
+  authenticate,
   requireRole(ADMIN_ROLES.SUPER_ADMIN),
   validate(publicIdParam, "params"),
   controller.duplicate
 );
-
-router.post("/:publicId/view", validate(publicIdParam, "params"), controller.recordView);
 
 module.exports = router;

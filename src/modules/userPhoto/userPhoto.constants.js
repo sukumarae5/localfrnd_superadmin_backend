@@ -1,0 +1,5 @@
+const MAX_USER_PHOTOS = 4;
+const CLOUDINARY_USER_PHOTOS_FOLDER =
+  process.env.CLOUDINARY_USER_PHOTOS_FOLDER || "lokalfrnd/users/photos";
+
+module.exports = { MAX_USER_PHOTOS, CLOUDINARY_USER_PHOTOS_FOLDER };
