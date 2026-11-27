@@ -144,6 +144,40 @@ async function autoCreateIfEligible(userId, createdById) {
   return serializeRJ(rj);
 }
 
+// Create RJ from an approved application.
+async function createFromApplication({
+  userId,
+  applicationId,
+  categoryId,
+  experienceYears,
+  createdById,
+}) {
+  const existingRJ = await repo.findByUserId(userId);
+
+  if (existingRJ) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      "RJ profile already exists for this user",
+    );
+  }
+
+  const created = await repo.createFromApplication({
+    userId,
+    displayCode: generateDisplayCode(),
+    applicationId,
+    categoryId,
+    experienceYears,
+    createdById,
+  });
+
+  // Automatically verify the linked User after RJ profile creation.
+  await usersRepo.markAutomaticallyVerified(userId);
+
+  const rj = await repo.findById(created.id);
+
+  return serializeRJ(rj);
+}
+
 const created = await repo.createFromApplication({
   userId,
   displayCode: generateDisplayCode(),
