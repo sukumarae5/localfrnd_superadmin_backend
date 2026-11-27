@@ -48,6 +48,27 @@ async function updatePresenceStatus(req, res, next) {
   }
 }
 
+async function updateVerification(req, res, next) {
+  try {
+    const rj = await rjService.updateVerification(
+      req.params.id,
+      req.body.verificationStatus,
+      req.admin.adminId
+    );
+
+    res.status(HTTP_STATUS.OK).json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        { rj },
+        "RJ verification status updated successfully"
+      )
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+
 async function remove(req, res, next) {
   try {
     await rjService.deleteRJ(req.params.id);
@@ -81,6 +102,7 @@ module.exports = {
   update,
   updateAccountStatus,
   updatePresenceStatus,
+  updateVerification,
   remove,
   addNote,
   listNotes,

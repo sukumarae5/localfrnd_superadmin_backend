@@ -32,6 +32,14 @@ router.post(
   controller.create
 );
 
+// PATCH /api/users/:id/verification
+router.patch(
+  "/:id/verification",
+  requireRole(ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.ADMIN),
+  validate(updateVerificationSchema),
+  controller.updateVerification
+);
+
 // PUT /api/users/:id — update profile fields
 router.put(
   "/:id",

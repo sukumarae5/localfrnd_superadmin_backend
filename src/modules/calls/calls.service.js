@@ -393,8 +393,8 @@ async function adminForceEndCall(sessionPublicId) {
 // keyed on User.id only — see social.prisma's header comment).
 // ----------------------------------------------------------------------------
 
-function serializeHistoryItem(session, counterpartUserId, counterpart) {
-  return {
+function serializeHistoryItem(session, counterpartUserId, counterpart, counterpartRjId = null) {
+    return {
     sessionPublicId: session.publicId,
     status: session.status,
     callType: session.callType,
@@ -406,6 +406,7 @@ function serializeHistoryItem(session, counterpartUserId, counterpart) {
     endReason: session.endReason,
     counterpart: {
       userId: counterpartUserId.toString(),
+      rjId: counterpartRjId,
       fullName: counterpart?.fullName || null,
       avatarUrl: counterpart?.avatarUrl || null,
     },
@@ -421,8 +422,9 @@ async function listUserCallHistory(userId, query) {
   const limit = Math.min(Number(query.limit) || 20, 100);
   const [sessions, total] = await repo.listUserCallHistory(userId, { page, limit });
   return {
-    calls: sessions.map((s) => serializeHistoryItem(s, s.rj.user.id, s.rj.user)),
+    calls: sessions.map((s) => serializeHistoryItem(s, s.rj.user.id, s.rj.user, s.rjId.toString())),
     pagination: paginate(page, limit, total),
+
   };
 }
 
@@ -438,7 +440,8 @@ async function listRJCallHistory(rjId, query) {
 
 async function listUserRecentContacts(userId) {
   const sessions = await repo.listUserRecentContacts(userId);
-  return sessions.map((s) => serializeHistoryItem(s, s.rj.user.id, s.rj.user));
+return sessions.map((s) => serializeHistoryItem(s, s.rj.user.id, s.rj.user, s.rjId.toString()));
+
 }
 
 async function listRJRecentContacts(rjId) {

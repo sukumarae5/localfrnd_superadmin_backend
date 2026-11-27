@@ -56,7 +56,7 @@ const { userFriendsRouter, rjFriendsRouter } = require("../modules/friends/frien
 const { userNotificationsRouter, rjNotificationsRouter } = require("../modules/notifications/notification.routes");
 const { userChatRouter, rjChatRouter } = require("../modules/chat/chat.routes");
 const lifestyleCategoryRoutes = require("../modules/lifestyleCategory/lifestyleCategory.routes");
-
+const userPhotoRoutes = require("../modules/userPhoto/userPhoto.routes");
 const lifestyleRoutes = require("../modules/lifestyle/lifestyle.routes");
 
 const userLifestyleRoutes = require("../modules/userLifestyle/userLifestyle.routes");
@@ -86,6 +86,7 @@ router.use("/user-interests", userInterestRoutes);
 router.use("/rj-interests", rjInterestRoutes);
 router.use("/user/auth", userAuthRoutes);
 router.use("/user/profile", userProfileRoutes);
+router.use("/user/photos", userPhotoRoutes);
 router.use("/rj/calls", rjCallsRouter);
 // These five MUST be registered before router.use("/rj", rjProfileRoutes)
 // below. Express's router.use(path, ...) matches by prefix, so "/rj" alone

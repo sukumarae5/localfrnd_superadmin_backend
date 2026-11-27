@@ -1,11 +1,28 @@
 // src/modules/rj/profile/rj.repository.js
 const { prisma } = require("../../../config/database");
 
-function buildWhere({ search, status, verificationStatus, tier, categoryId, onlineOnly, onlineThreshold }) {
+function buildWhere({
+  search,
+  status,
+  verificationStatus,
+  tier,
+  categoryId,
+  onlineOnly,
+  onlineThreshold,
+}) {
   const where = { deletedAt: null };
 
   if (status) where.status = status;
-  if (verificationStatus) where.verificationStatus = verificationStatus;
+
+  // Verification belongs to User, not RJ.
+  if (verificationStatus) {
+    where.user = {
+      is: {
+        verificationStatus,
+      },
+    };
+  }
+
   if (tier) where.tier = tier;
   if (onlineOnly) where.lastActiveAt = { gte: onlineThreshold };
   if (categoryId) where.categories = { some: { categoryId } };
@@ -31,17 +48,36 @@ const profileInclude = {
       mobileCountryCode: true,
       mobileNumber: true,
       avatarUrl: true,
-      bio: true,          // ← added, was missing
-      status: true,       // ← added, was missing (needed for account-status history)
+      bio: true,
+      status: true,
       city: true,
       state: true,
       country: true,
-      languages: { include: { language: true } },
+
+      // Shared verification fields
+      verificationStatus: true,
+      verifiedAt: true,
+      verifiedBy: {
+        select: {
+          fullName: true,
+        },
+      },
+
+      languages: {
+        include: {
+          language: true,
+        },
+      },
     },
   },
-  categories: { include: { category: true } },
+
+  categories: {
+    include: {
+      category: true,
+    },
+  },
+
   wallet: true,
-  verifiedBy: { select: { fullName: true } },
 };
 
 async function listRJs({ page, limit, search, status, verificationStatus, tier, categoryId, onlineOnly, onlineThreshold, sortBy, sortOrder }) {
@@ -125,8 +161,7 @@ function createFromApplication({ userId, displayCode, applicationId, categoryId,
         displayCode,
         currentAppId: applicationId ? BigInt(applicationId) : null,
         experienceYears: experienceYears || 0,
-        verificationStatus: "verified",
-        verifiedAt: new Date(),
+       
         approvedAt: new Date(),
         createdById: createdById ? BigInt(createdById) : null,
       },

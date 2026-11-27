@@ -27,6 +27,22 @@ enum UserStatus {
   @@map("user_status")
 }
 
+
+model UserPhoto {
+  id                 BigInt   @id @default(autoincrement())
+  publicId           String   @unique @default(uuid())
+  userId             BigInt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imageUrl           String
+  cloudinaryPublicId String
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+}
+
+
 enum VerificationStatus {
   unverified
   pending

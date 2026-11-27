@@ -49,10 +49,17 @@ const listRJsQuerySchema = Joi.object({
   sortOrder: Joi.string().valid("asc", "desc").optional(),
 });
 
+const updateVerificationSchema = Joi.object({
+  verificationStatus: Joi.string()
+    .valid(...VERIFICATION_STATUSES)
+    .required(),
+});
+
 module.exports = {
   updateRJSchema,
   updateAccountStatusSchema,
   updatePresenceStatusSchema,
   addNoteSchema,
   listRJsQuerySchema,
+  updateVerificationSchema,
 };

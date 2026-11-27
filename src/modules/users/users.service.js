@@ -174,6 +174,7 @@ async function getUserById(id) {
   return serializeUser(user);
 }
 
+
 async function createUser({
   fullName,
   mobileCountryCode,
@@ -190,15 +191,26 @@ async function createUser({
   languageIds,
   createdById,
 }) {
-  const existingMobile = await repo.findByMobile(mobileCountryCode, mobileNumber);
+  const existingMobile = await repo.findByMobile(
+    mobileCountryCode,
+    mobileNumber
+  );
+
   if (existingMobile) {
-    throw new ApiError(HTTP_STATUS.CONFLICT, "A user with this mobile number already exists");
+    throw new ApiError(
+      HTTP_STATUS.CONFLICT,
+      "A user with this mobile number already exists"
+    );
   }
 
   if (email) {
     const existingEmail = await repo.findByEmail(email);
+
     if (existingEmail) {
-      throw new ApiError(HTTP_STATUS.CONFLICT, "A user with this email already exists");
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        "A user with this email already exists"
+      );
     }
   }
 
@@ -213,12 +225,12 @@ async function createUser({
     mobileNumber,
     email: email || null,
     gender: gender || null,
-dateOfBirth: parseDateOfBirth(dateOfBirth),
+    dateOfBirth: parseDateOfBirth(dateOfBirth),
     country: country || null,
     state: state || null,
     city: city || null,
-      bio: bio || null,
-  avatarUrl: avatarUrl || null,
+    bio: bio || null,
+    avatarUrl: avatarUrl || null,
     locality: locality || null,
     createdById: createdById ? BigInt(createdById) : null,
   });
@@ -227,25 +239,44 @@ dateOfBirth: parseDateOfBirth(dateOfBirth),
     await repo.setUserLanguages(created.id, languageIds);
   }
 
-  const user = await repo.findById(created.id);
-
-  if (user.gender === "female") {
-    await rjService.autoCreateIfEligible(user.id, createdById);
+  // Automatically create an RJ record for female users.
+  if (created.gender === "female") {
+    await rjService.autoCreateIfEligible(created.id, createdById);
   }
+
+  // Automatically verify after all profile creation steps succeed.
+  await repo.markAutomaticallyVerified(created.id);
+
+  // Fetch the final record with the latest verification fields.
+  const user = await repo.findById(created.id);
 
   return serializeUser(user);
 }
 
+
+
 async function updateUser(id, updates, updatedById) {
   const existing = await repo.findById(id);
-  if (!existing || existing.deletedAt) throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found");
+
+  if (!existing || existing.deletedAt) {
+    throw new ApiError(
+      HTTP_STATUS.NOT_FOUND,
+      "User not found"
+    );
+  }
 
   if (updates.email && updates.email !== existing.email) {
     const emailTaken = await repo.findByEmail(updates.email);
-    if (emailTaken) throw new ApiError(HTTP_STATUS.CONFLICT, "A user with this email already exists");
+
+    if (emailTaken) {
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        "A user with this email already exists"
+      );
+    }
   }
 
-  // languageIds isn't a column on `users` — it's handled separately via UserLanguage
+  // languageIds is managed separately through UserLanguage.
   const { languageIds, ...profileFields } = updates;
 
   if (languageIds) {
@@ -255,19 +286,28 @@ async function updateUser(id, updates, updatedById) {
 
   await repo.updateUser(id, {
     ...profileFields,
-dateOfBirth: profileFields.dateOfBirth
-  ? parseDateOfBirth(profileFields.dateOfBirth)
-  : undefined,
-      updatedById: updatedById ? BigInt(updatedById) : null,
+    dateOfBirth: profileFields.dateOfBirth
+      ? parseDateOfBirth(profileFields.dateOfBirth)
+      : undefined,
+    updatedById: updatedById ? BigInt(updatedById) : null,
   });
 
-  const user = await repo.findById(id);
+  // If the user is female, make sure the RJ profile exists.
+  const updatedUser = await repo.findById(id);
 
-  if (user.gender === "female") {
-    await rjService.autoCreateIfEligible(user.id, updatedById);
+  if (updatedUser.gender === "female") {
+    await rjService.autoCreateIfEligible(
+      updatedUser.id,
+      updatedById
+    );
   }
 
-  return serializeUser(user);
+  // Automatically verify after successful profile update.
+  await repo.markAutomaticallyVerified(id);
+
+  const finalUser = await repo.findById(id);
+
+  return serializeUser(finalUser);
 }
 
 async function changeStatus(id, { status, reason }, changedById) {
@@ -323,6 +363,37 @@ async function listNotes(id) {
   }));
 }
 
+async function updateVerification(id, verificationStatus, adminId) {
+  const existing = await repo.findById(id);
+
+  if (!existing || existing.deletedAt) {
+    throw new ApiError(
+      HTTP_STATUS.NOT_FOUND,
+      "User not found"
+    );
+  }
+
+  if (existing.verificationStatus === verificationStatus) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      `User is already ${verificationStatus}`
+    );
+  }
+
+  const updated = await repo.updateVerificationStatus(
+    id,
+    verificationStatus,
+    adminId
+  );
+
+  const user = await repo.findById(id);
+
+  return serializeUser({
+    ...user,
+    verifiedBy: updated.verifiedBy,
+  });
+}
+
 module.exports = {
   listUsers,
   getUserById,
@@ -332,4 +403,7 @@ module.exports = {
   deleteUser,
   addNote,
   listNotes,
+  updateVerification,
+  generateDisplayCode,
+  parseDateOfBirth,
 };
