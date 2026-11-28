@@ -1,4 +1,4 @@
-// src/modules/rj/profile/rj.service.js
+
 const crypto = require("crypto");
 const ApiError = require("../../../utils/apiError.util");
 const { HTTP_STATUS } = require("../../../constants");
@@ -7,96 +7,109 @@ const repo = require("./rj.repository");
 const usersRepo = require("../../users/users.repository");
 const presenceService = require("../../../socket/presence.service");
 
-// RJ-8842 style, matching the Figma badge
+// Generate RJ display code.
 function generateDisplayCode() {
   return `RJ-${crypto.randomInt(1000, 9999)}`;
 }
 
-// Same active-vs-online distinction as users.service.js: `status` field on
-// RJ is real-time presence (online/offline/busy/on_call), separately from
-// account moderation state which lives on the underlying User.status.
-//
-// This used to be a lastActiveAt-recency guess. It's now backed by
-// presenceService.isOnlineSync() — the same PresenceManager the socket layer
-// and login use — so this badge means "she has a live, currently-connected
-// socket right now," not "she was active sometime in the last N minutes."
-// That distinction matters here specifically: this app routes live calls to
-// online RJs, so "online" needs to mean actually reachable, not recently
-// seen. See presence.service.js's module comment for the full reasoning.
-//
-// Note: `listRJs`'s `onlineOnly` filter below still queries the DB by
-// lastActiveAt threshold (a live socket check can't be pushed into that SQL
-// WHERE clause), so it's still possible for the list-filter and this
-// per-row badge to disagree at the margins — e.g. an RJ included by
-// onlineOnly whose socket dropped seconds ago. Worth reconciling later if
-// that shows up as a real admin-panel complaint; leaving it as-is for now
-// rather than reworking the filter query in the same pass as this fix.
+// Check real-time RJ presence using Socket.IO presence service.
 function isOnline(rjId) {
   return presenceService.isOnlineSync("rj", rjId);
 }
 
+// Convert RJ database record into API response.
 function serializeRJ(rj) {
+  if (!rj) return null;
+
   return {
     id: rj.id.toString(),
     publicId: rj.publicId,
     displayCode: rj.displayCode,
+
     userId: rj.user.id.toString(),
     fullName: rj.user.fullName,
     email: rj.user.email,
     mobileCountryCode: rj.user.mobileCountryCode,
     mobileNumber: rj.user.mobileNumber,
+
     avatarUrl: rj.user.avatarUrl,
     city: rj.user.city,
     state: rj.user.state,
     country: rj.user.country,
-    languages: rj.user.languages?.map((l) => l.language.name) || undefined,
-    bio: rj.user.bio, // ← was rj.bio (field doesn't exist on RJ), now reads from the underlying User
+
+    languages:
+      rj.user.languages?.map((l) => l.language.name) || undefined,
+
+    bio: rj.user.bio,
+
     tier: rj.tier,
     status: rj.status,
     isOnline: isOnline(rj.id),
+
     verificationStatus: rj.user.verificationStatus,
     verifiedAt: rj.user.verifiedAt,
     verifiedByName: rj.user.verifiedBy?.fullName || null,
+
     experienceYears: rj.experienceYears,
     commissionRate: rj.commissionRate,
     avgRating: rj.avgRating,
     totalCallsCount: rj.totalCallsCount,
     avgResponseSeconds: rj.avgResponseSeconds,
-    categories: rj.categories?.map((c) => c.category.name) || undefined,
-    wallet: rj.wallet ? { balance: rj.wallet.balance } : null,
+
+    categories:
+      rj.categories?.map((c) => c.category.name) || undefined,
+
+    wallet: rj.wallet
+      ? { balance: rj.wallet.balance }
+      : null,
+
     badges:
-      rj.badges?.map((b) => ({ name: b.badgeName, awardedAt: b.awardedAt })) ||
-      undefined,
-    recentStatusHistory: rj.statusHistory?.map((h) => ({
-      previousStatus: h.previousStatus,
-      newStatus: h.newStatus,
-      reason: h.reason,
-      createdAt: h.createdAt,
-    })),
+      rj.badges?.map((b) => ({
+        name: b.badgeName,
+        awardedAt: b.awardedAt,
+      })) || undefined,
+
+    recentStatusHistory:
+      rj.statusHistory?.map((h) => ({
+        previousStatus: h.previousStatus,
+        newStatus: h.newStatus,
+        reason: h.reason,
+        createdAt: h.createdAt,
+      })),
+
     approvedAt: rj.approvedAt,
     lastActiveAt: rj.lastActiveAt,
   };
 }
 
+// Validate RJ category IDs.
 async function assertCategoriesExist(categoryIds) {
   const found = await repo.findCategoriesByIds(categoryIds);
+
   if (found.length !== categoryIds.length) {
     const foundIds = found.map((c) => c.id);
-    const missing = categoryIds.filter((id) => !foundIds.includes(id));
+
+    const missing = categoryIds.filter(
+      (id) => !foundIds.includes(id)
+    );
+
     throw new ApiError(
       HTTP_STATUS.BAD_REQUEST,
-      `Unknown category id(s): ${missing.join(", ")}`,
+      `Unknown category id(s): ${missing.join(", ")}`
     );
   }
 }
 
+// List RJs with pagination and filters.
 async function listRJs(query) {
   const page = Number(query.page) || 1;
   const limit = Math.min(Number(query.limit) || 20, 100);
+
   const sortBy = query.sortBy || "approvedAt";
   const sortOrder = query.sortOrder === "asc" ? "asc" : "desc";
+
   const onlineThreshold = new Date(
-    Date.now() - ONLINE_THRESHOLD_MINUTES * 60 * 1000,
+    Date.now() - ONLINE_THRESHOLD_MINUTES * 60 * 1000
   );
 
   const { rjs, total } = await repo.listRJs({
@@ -106,7 +119,9 @@ async function listRJs(query) {
     status: query.status,
     verificationStatus: query.verificationStatus,
     tier: query.tier,
-    categoryId: query.categoryId ? Number(query.categoryId) : undefined,
+    categoryId: query.categoryId
+      ? Number(query.categoryId)
+      : undefined,
     onlineOnly: query.onlineOnly,
     onlineThreshold,
     sortBy,
@@ -115,23 +130,33 @@ async function listRJs(query) {
 
   return {
     rjs: rjs.map(serializeRJ),
-    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
   };
 }
 
+// Get RJ details by RJ ID.
 async function getRJById(id) {
   const rj = await repo.findById(id);
-  if (!rj || rj.deletedAt)
-    throw new ApiError(HTTP_STATUS.NOT_FOUND, "RJ not found");
+
+  if (!rj || rj.deletedAt) {
+    throw new ApiError(
+      HTTP_STATUS.NOT_FOUND,
+      "RJ not found"
+    );
+  }
+
   return serializeRJ(rj);
 }
 
-// Called from users.service.js right after any profile update/create that
-// results in gender === "female". Silently no-ops if she's already an RJ
-// (e.g. profile saved twice, or she was already promoted some other way) —
-// this must be safe to call on every save, not just the first one.
+// Automatically create RJ when a female user completes profile.
 async function autoCreateIfEligible(userId, createdById) {
   const existingRJ = await repo.findByUserId(userId);
+
   if (existingRJ) return null;
 
   const created = await repo.createAutoApproved({
@@ -141,6 +166,7 @@ async function autoCreateIfEligible(userId, createdById) {
   });
 
   const rj = await repo.findById(created.id);
+
   return serializeRJ(rj);
 }
 
@@ -157,7 +183,7 @@ async function createFromApplication({
   if (existingRJ) {
     throw new ApiError(
       HTTP_STATUS.BAD_REQUEST,
-      "RJ profile already exists for this user",
+      "RJ profile already exists for this user"
     );
   }
 
@@ -170,7 +196,7 @@ async function createFromApplication({
     createdById,
   });
 
-  // Automatically verify the linked User after RJ profile creation.
+  // Automatically verify linked User after RJ creation.
   await usersRepo.markAutomaticallyVerified(userId);
 
   const rj = await repo.findById(created.id);
@@ -178,26 +204,7 @@ async function createFromApplication({
   return serializeRJ(rj);
 }
 
-const created = await repo.createFromApplication({
-  userId,
-  displayCode: generateDisplayCode(),
-  applicationId,
-  categoryId,
-  experienceYears,
-  createdById,
-});
-
-// Automatically verify linked User after RJ profile creation.
-await usersRepo.markAutomaticallyVerified(userId);
-
-const rj = await repo.findById(created.id);
-return serializeRJ(rj);
-
-// updateRJ — bio now needs to be routed to usersRepo.updateUser, not
-// repo.updateRJ, since it's a User column, not an RJ column. Everything
-// else (tier, experienceYears, commissionRate, categoryIds) still goes
-// through the RJ update path as before.
-
+// Update RJ profile.
 async function updateRJ(id, updates, updatedById) {
   const existing = await repo.findById(id);
 
@@ -210,12 +217,14 @@ async function updateRJ(id, updates, updatedById) {
 
   const { categoryIds, bio, ...profileFields } = updates;
 
+  // Update RJ categories.
   if (categoryIds) {
     await assertCategoriesExist(categoryIds);
+
     await repo.setCategories(id, categoryIds);
   }
 
-  // Bio belongs to User, not RJ.
+  // Bio belongs to User table, not RJ table.
   if (bio !== undefined) {
     await usersRepo.updateUser(existing.user.id, {
       bio,
@@ -233,43 +242,21 @@ async function updateRJ(id, updates, updatedById) {
       : null,
   });
 
-  // Automatically verify the linked User after successful RJ update.
+  // Automatically verify linked User.
   await usersRepo.markAutomaticallyVerified(existing.userId);
 
-  // Fetch updated RJ including the linked User verification information.
   const updatedRJ = await repo.findById(id);
 
   return serializeRJ(updatedRJ);
 }
 
-
-// Account moderation (active/inactive/suspended/blocked) — mirrors
-// users.service.js changeStatus exactly, logged to RJStatusHistory.
-async function changeAccountStatus(id, { status, reason }, changedById) {
-  const existing = await repo.findById(id);
-  if (!existing || existing.deletedAt)
-    throw new ApiError(HTTP_STATUS.NOT_FOUND, "RJ not found");
-
-  // Account status is stored on the underlying User (single source of truth
-  // for suspension/blocking across the whole platform).
-  await usersRepo.updateStatus(existing.userId, status);
-
-  await repo.createStatusHistory({
-    rjId: existing.id,
-    previousStatus: existing.user.status || "active",
-    newStatus: status,
-    reason: reason || null,
-    changedById,
-  });
-
-  const rj = await repo.findById(id);
-  return serializeRJ(rj);
-}
-
-
-// Profile verification is maintained in the User table.
-// RJ ID is used to find the linked User ID.
-async function updateVerification(id, verificationStatus, adminId) {
+// Change RJ account moderation status.
+// Account status is maintained in User table.
+async function changeAccountStatus(
+  id,
+  { status, reason },
+  changedById
+) {
   const existing = await repo.findById(id);
 
   if (!existing || existing.deletedAt) {
@@ -279,50 +266,109 @@ async function updateVerification(id, verificationStatus, adminId) {
     );
   }
 
-  if (existing.user.verificationStatus === verificationStatus) {
+  // Update underlying User status.
+  await usersRepo.updateStatus(existing.userId, status);
+
+  // Record RJ status history.
+  await repo.createStatusHistory({
+    rjId: existing.id,
+    previousStatus: existing.user.status || "active",
+    newStatus: status,
+    reason: reason || null,
+    changedById,
+  });
+
+  const rj = await repo.findById(id);
+
+  return serializeRJ(rj);
+}
+
+// Update RJ verification status.
+// Verification is stored in User table.
+async function updateVerification(
+  id,
+  verificationStatus,
+  adminId
+) {
+  const existing = await repo.findById(id);
+
+  if (!existing || existing.deletedAt) {
+    throw new ApiError(
+      HTTP_STATUS.NOT_FOUND,
+      "RJ not found"
+    );
+  }
+
+  if (
+    existing.user.verificationStatus === verificationStatus
+  ) {
     throw new ApiError(
       HTTP_STATUS.BAD_REQUEST,
       `RJ is already ${verificationStatus}`
     );
   }
 
-  // Update the shared User verification record.
   await usersRepo.updateVerificationStatus(
     existing.userId,
     verificationStatus,
     adminId
   );
 
-  // Fetch updated RJ with linked User verification details.
   const updatedRJ = await repo.findById(id);
 
   return serializeRJ(updatedRJ);
 }
-// Real-time presence (online/offline/busy/on_call) — set by the mobile app
-// via Socket.io events, or an admin forcing an RJ offline.
-async function changePresenceStatus(id, status, changedById) {
+
+// Change real-time RJ presence status.
+async function changePresenceStatus(
+  id,
+  status,
+  changedById
+) {
   const existing = await repo.findById(id);
-  if (!existing || existing.deletedAt)
-    throw new ApiError(HTTP_STATUS.NOT_FOUND, "RJ not found");
+
+  if (!existing || existing.deletedAt) {
+    throw new ApiError(
+      HTTP_STATUS.NOT_FOUND,
+      "RJ not found"
+    );
+  }
 
   const rj = await repo.updatePresenceStatus(id, status);
+
   return serializeRJ(await repo.findById(rj.id));
 }
 
+// Soft delete RJ.
 async function deleteRJ(id) {
   const existing = await repo.findById(id);
-  if (!existing || existing.deletedAt)
-    throw new ApiError(HTTP_STATUS.NOT_FOUND, "RJ not found");
+
+  if (!existing || existing.deletedAt) {
+    throw new ApiError(
+      HTTP_STATUS.NOT_FOUND,
+      "RJ not found"
+    );
+  }
 
   await repo.softDeleteRJ(id);
 }
 
+// Add admin note to RJ profile.
 async function addNote(id, note, adminId) {
   const existing = await repo.findById(id);
-  if (!existing || existing.deletedAt)
-    throw new ApiError(HTTP_STATUS.NOT_FOUND, "RJ not found");
 
-  const created = await repo.createNote({ rjId: id, adminId, note });
+  if (!existing || existing.deletedAt) {
+    throw new ApiError(
+      HTTP_STATUS.NOT_FOUND,
+      "RJ not found"
+    );
+  }
+
+  const created = await repo.createNote({
+    rjId: id,
+    adminId,
+    note,
+  });
 
   return {
     id: created.id.toString(),
@@ -332,8 +378,10 @@ async function addNote(id, note, adminId) {
   };
 }
 
+// Get RJ admin notes.
 async function listNotes(id) {
   const notes = await repo.listNotes(id);
+
   return notes.map((n) => ({
     id: n.id.toString(),
     note: n.note,
@@ -342,15 +390,16 @@ async function listNotes(id) {
   }));
 }
 
+// Export service functions.
 module.exports = {
   listRJs,
   getRJById,
-  createFromApplication,
   autoCreateIfEligible,
+  createFromApplication,
   updateRJ,
   changeAccountStatus,
-  changePresenceStatus,
   updateVerification,
+  changePresenceStatus,
   deleteRJ,
   addNote,
   listNotes,
